@@ -1,0 +1,20 @@
+# Ambiente virtual
+venv/
+.venv/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Variáveis de ambiente / segredos
+.env
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
