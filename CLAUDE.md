@@ -65,25 +65,43 @@ streamlit run app.py
 
 ## Estrutura do projeto
 
-Estrutura planejada (ver README para detalhes). Conforme os arquivos forem criados,
-manter esta seção atualizada.
+```
+app.py                 # ponto de entrada do Streamlit (header, KPIs, gráficos, tabela)
+api/
+  sisvan.py            # cliente da API do SISVAN (paginação + retry); Python puro
+utils/
+  data.py              # transformação/limpeza com pandas; puro (sem Streamlit)
+components/
+  filters.py           # filtros da sidebar (de API vs. de cliente)
+  charts.py            # construtores de gráficos Plotly
+```
 
-```
-app.py            # ponto de entrada do Streamlit
-api/sisvan.py     # consumo da API do SISVAN
-components/        # filters.py (sidebar), charts.py (gráficos)
-utils/data.py     # transformação e limpeza com pandas
-```
+Camadas: `api/` e `utils/` não importam Streamlit (testáveis isoladamente). O cache
+de sessão (`st.cache_data`) fica no `app.py`, envolvendo a chamada à API + transformação.
 
 ## Convenções de código
 
-<!-- TODO: preencher junto -->
-- Idioma da UI (textos visíveis ao usuário): ___
-- Idioma de código (nomes de variáveis, funções, comentários): ___
-- Estilo / formatação: ___
+- **Idioma da UI** (textos visíveis ao usuário): **português (BR)**.
+- **Idioma do código** (variáveis, funções, comentários, docstrings): **português (BR)**,
+  seguindo o estilo do projeto de referência (`tabviva`). Nomes de campos da API do
+  SISVAN são mantidos como vêm (`codigo_municipio`, `fase_vida`, etc.).
+- **Estilo**: PEP 8, aspas duplas, type hints quando ajudam a leitura. Comentários em
+  blocos com cabeçalho `# ---` separando seções (padrão do `tabviva`).
+- **Gráficos**: paleta categórica de ordem fixa em `components/charts.py`; barra de
+  série única usa um único tom (a categoria já está no eixo).
 
 ## Notas de domínio
 
-<!-- TODO: preencher junto -->
-- API do SISVAN: ___
-- Cache de dados em sessão: ___
+- **API do SISVAN** (`estado-nutricional`): retorna **microdados** (1 registro por
+  acompanhamento), embrulhados na chave `estados_nutricionais`. **Limite rígido de 20
+  itens/página** → paginação obrigatória (`offset` = número da página, começa em 0).
+- **Dimensões já vêm traduzidas** pela API (município, fase da vida, raça/cor,
+  escolaridade, estado nutricional…). Não é preciso replicar tabelas de código→rótulo.
+  A única dimensão ausente é geográfica (lat/lon do município) — mapa fica para depois.
+- **Codificação inconsistente**: texto vem ora sem acento (`SEM INFORMACAO`), ora com
+  bytes perdidos (`SEM INFORMA�O`). Corrigido em `utils/data.py` por comparação de
+  "esqueleto" (só letras A-Z).
+- **Estabilidade**: consultas filtradas retornam `502 Proxy Error` de forma intermitente
+  → o cliente tem retry com backoff. Recortes específicos respondem melhor.
+- **Cache de sessão**: `st.cache_data` no `app.py` guarda o resultado por recorte +
+  volume; filtros de cliente (sexo, raça/cor) refinam sem nova requisição.
