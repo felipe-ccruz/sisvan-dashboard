@@ -66,18 +66,32 @@ streamlit run app.py
 ## Estrutura do projeto
 
 ```
-app.py                 # ponto de entrada do Streamlit (header, KPIs, gráficos, tabela)
+app.py                 # ponto de entrada: st.set_page_config + st.navigation
+paginas/
+  para.py              # página do Pará (uf_fixa="PA")
+  nacional.py          # página nacional (UF livre + comparação entre estados)
 api/
   sisvan.py            # cliente da API do SISVAN (paginação + retry); Python puro
 utils/
   data.py              # transformação/limpeza com pandas; puro (sem Streamlit)
 components/
+  painel.py            # corpo da página (busca, KPIs, gráficos, tabela) + cache
   filters.py           # filtros da sidebar (de API vs. de cliente)
   charts.py            # construtores de gráficos Plotly
 ```
 
 Camadas: `api/` e `utils/` não importam Streamlit (testáveis isoladamente). O cache
-de sessão (`st.cache_data`) fica no `app.py`, envolvendo a chamada à API + transformação.
+de sessão (`st.cache_data`) fica em `components/painel.py`, envolvendo a chamada à
+API + transformação.
+
+**Páginas.** As duas páginas são só duas chamadas de
+`components.painel.renderizar_painel` com parâmetros diferentes — qualquer mudança de
+layout deve entrar no painel, não ser duplicada nas páginas. O que as separa:
+`uf_fixa` (trava o seletor de UF e entra em toda consulta) e `comparar_ufs` (exibe a
+seção comparativa). Cada página usa uma `chave_estado` própria no `st.session_state`,
+para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e não
+`pages/` de propósito: com `st.navigation` os rótulos e ícones ficam explícitos no
+`app.py`, e o autodescobrimento de `pages/` fica desligado.
 
 ## Convenções de código
 
@@ -88,7 +102,9 @@ de sessão (`st.cache_data`) fica no `app.py`, envolvendo a chamada à API + tra
 - **Estilo**: PEP 8, aspas duplas, type hints quando ajudam a leitura. Comentários em
   blocos com cabeçalho `# ---` separando seções (padrão do `tabviva`).
 - **Gráficos**: paleta categórica de ordem fixa em `components/charts.py`; barra de
-  série única usa um único tom (a categoria já está no eixo).
+  série única usa um único tom (a categoria já está no eixo). Nos gráficos
+  comparativos, a UF em foco (`UF_DESTAQUE_PADRAO = "PA"`) ganha o verde e as demais
+  ficam no azul — é destaque, não categoria.
 
 ## Notas de domínio
 
@@ -103,5 +119,9 @@ de sessão (`st.cache_data`) fica no `app.py`, envolvendo a chamada à API + tra
   "esqueleto" (só letras A-Z).
 - **Estabilidade**: consultas filtradas retornam `502 Proxy Error` de forma intermitente
   → o cliente tem retry com backoff. Recortes específicos respondem melhor.
-- **Cache de sessão**: `st.cache_data` no `app.py` guarda o resultado por recorte +
-  volume; filtros de cliente (sexo, raça/cor) refinam sem nova requisição.
+- **Cache de sessão**: `st.cache_data` em `components/painel.py` guarda o resultado
+  por recorte + volume; filtros de cliente (sexo, raça/cor) refinam sem nova
+  requisição. Como a UF entra nos filtros, Pará e nacional têm entradas separadas.
+- **Recorte do Pará**: a SESPA é do Pará, então a página `paginas/para.py` prende a UF
+  em `PA` e a nacional serve de comparação. O código IBGE de município do Pará começa
+  em `15` — a sidebar avisa quando o município digitado não bate com a UF travada.
