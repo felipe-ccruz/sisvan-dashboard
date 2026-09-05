@@ -8,7 +8,9 @@ Distingue dois tipos de filtro:
   requisição (sexo, raça/cor). Assim o usuário refina a visualização de graça.
 
 A função :func:`renderizar_sidebar` desenha os controles e devolve as escolhas; o
-``app.py`` decide quando disparar a busca.
+painel decide quando disparar a busca. Passando ``uf_fixa``, a UF deixa de ser
+escolhível e todas as consultas da página ficam presas àquele estado — é o que
+separa a página do Pará da página nacional.
 """
 
 import unicodedata
@@ -24,6 +26,16 @@ UFS = [
     "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
     "SP", "SE", "TO",
 ]
+
+# Dois primeiros dígitos do código IBGE do município, por UF. Serve para avisar
+# quando o município digitado não pertence à UF fixada da página.
+CODIGOS_IBGE_UF = {
+    "RO": "11", "AC": "12", "AM": "13", "RR": "14", "PA": "15", "AP": "16",
+    "TO": "17", "MA": "21", "PI": "22", "CE": "23", "RN": "24", "PB": "25",
+    "PE": "26", "AL": "27", "SE": "28", "BA": "29", "MG": "31", "ES": "32",
+    "RJ": "33", "SP": "35", "PR": "41", "SC": "42", "RS": "43", "MS": "50",
+    "MT": "51", "GO": "52", "DF": "53",
+}
 
 # codigo_fase_vida -> rótulo
 FASES_VIDA = {
@@ -58,8 +70,15 @@ GESTANTE_OPCOES = {
 # --------------------------------------
 # RENDERIZAÇÃO DA SIDEBAR
 # --------------------------------------
-def renderizar_sidebar() -> dict:
+def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     """Desenha os filtros e devolve as escolhas do usuário.
+
+    Parameters
+    ----------
+    uf_fixa : str | None
+        Sigla da UF à qual a página está presa (ex.: ``"PA"``). Quando informada, o
+        seletor de estado vira apenas um indicador e a UF entra em toda consulta.
+        ``None`` mantém o seletor livre (página nacional).
 
     Returns
     -------
@@ -79,13 +98,36 @@ def renderizar_sidebar() -> dict:
     # ---- Filtros de API ----
     st.sidebar.subheader("Recorte (enviado à API)")
 
-    uf = st.sidebar.selectbox("Estado (UF)", options=["Todos"] + UFS, index=0)
+    if uf_fixa:
+        uf = uf_fixa
+        st.sidebar.selectbox(
+            "Estado (UF)",
+            options=[uf_fixa],
+            index=0,
+            disabled=True,
+            help="Esta página analisa apenas este estado.",
+        )
+    else:
+        uf = st.sidebar.selectbox("Estado (UF)", options=["Todos"] + UFS, index=0)
 
+    prefixo_ibge = CODIGOS_IBGE_UF.get(uf_fixa or "")
     codigo_municipio = st.sidebar.text_input(
         "Código IBGE do município",
-        help="Opcional. Ex.: 355030 (São Paulo). Deixe vazio para não filtrar.",
-        placeholder="ex.: 355030",
+        help=(
+            f"Opcional. Deve ser um município do {uf_fixa} (o código começa com "
+            f"{prefixo_ibge}). Deixe vazio para não filtrar."
+            if prefixo_ibge
+            else "Opcional. Ex.: 355030 (São Paulo). Deixe vazio para não filtrar."
+        ),
+        placeholder=f"começa com {prefixo_ibge}" if prefixo_ibge else "ex.: 355030",
     ).strip()
+
+    # Município fora da UF fixada zeraria o resultado (a API combina os filtros).
+    if codigo_municipio and prefixo_ibge and not codigo_municipio.startswith(prefixo_ibge):
+        st.sidebar.warning(
+            f"O código {codigo_municipio} não é de um município do {uf_fixa}; "
+            "a consulta deve voltar vazia."
+        )
 
     competencia = st.sidebar.text_input(
         "Competência (AAAAMM)",
