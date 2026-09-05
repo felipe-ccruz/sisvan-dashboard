@@ -36,6 +36,12 @@ AZUL = PALETA_CATEGORICA[0]
 # Cores presas a entidades (não mudam se o recorte muda).
 CORES_SEXO = {"Feminino": "#e87ba4", "Masculino": "#2a78d6"}
 
+# Nos gráficos comparativos, a UF em foco ganha um tom próprio e as demais ficam no
+# azul padrão — é destaque, não categoria.
+VERDE = PALETA_CATEGORICA[1]
+UF_DESTAQUE_PADRAO = "PA"
+ROTULO_DEMAIS_UFS = "Demais estados"
+
 
 def _aplicar_tema(fig: go.Figure) -> go.Figure:
     """Aplica layout consistente a todas as figuras."""
@@ -194,4 +200,81 @@ def grafico_estado_por_sexo(df: pd.DataFrame) -> go.Figure | None:
         labels={"estado_nutricional": "Estado nutricional",
                 "registros": "Registros", "sexo": "Sexo"},
     )
+    return _aplicar_tema(fig)
+
+
+# --------------------------------------
+# GRÁFICOS COMPARATIVOS ENTRE UFs
+# --------------------------------------
+def grafico_ufs(
+    df: pd.DataFrame,
+    top_n: int = 15,
+    uf_destaque: str = UF_DESTAQUE_PADRAO,
+) -> go.Figure | None:
+    """Acompanhamentos por UF, com a UF em foco destacada em outro tom.
+
+    Só faz sentido quando o recorte trouxe mais de uma UF (página nacional).
+    """
+    if df.empty or "uf" not in df.columns:
+        return None
+
+    contagem = df["uf"].dropna().value_counts()
+    if contagem.size < 2:
+        return None
+    contagem = contagem.head(top_n)
+
+    dados = contagem.rename_axis("uf").reset_index(name="registros")
+    dados = dados.iloc[::-1]  # maior no topo
+
+    fig = px.bar(
+        dados, x="registros", y="uf", orientation="h",
+        text="registros", title=f"Acompanhamentos por UF (top {top_n})",
+        labels={"registros": "Registros", "uf": "UF"},
+    )
+    cores = [VERDE if uf == uf_destaque else AZUL for uf in dados["uf"]]
+    fig.update_traces(marker_color=cores, textposition="outside", cliponaxis=False)
+    return _aplicar_tema(fig)
+
+
+def grafico_estado_nutricional_comparado(
+    df: pd.DataFrame,
+    uf_destaque: str = UF_DESTAQUE_PADRAO,
+) -> go.Figure | None:
+    """Estado nutricional: UF em foco x demais estados, em percentual.
+
+    Compara a **distribuição** (não a contagem) porque os dois grupos têm tamanhos
+    muito diferentes — só o percentual dentro de cada grupo é comparável.
+    """
+    if df.empty or not {"uf", "estado_nutricional"}.issubset(df.columns):
+        return None
+
+    dados = df.dropna(subset=["uf", "estado_nutricional"])
+    if dados.empty:
+        return None
+
+    grupo = dados["uf"].eq(uf_destaque).map({True: uf_destaque, False: ROTULO_DEMAIS_UFS})
+    if grupo.nunique() < 2:  # sem os dois lados não há comparação
+        return None
+
+    tabela = (
+        dados.assign(grupo=grupo)
+        .groupby(["estado_nutricional", "grupo"])
+        .size()
+        .reset_index(name="registros")
+    )
+    total_por_grupo = tabela.groupby("grupo")["registros"].transform("sum")
+    tabela["percentual"] = tabela["registros"] / total_por_grupo * 100
+
+    fig = px.bar(
+        tabela, x="estado_nutricional", y="percentual", color="grupo",
+        barmode="group", title=f"Estado nutricional — {uf_destaque} x demais estados",
+        color_discrete_map={uf_destaque: VERDE, ROTULO_DEMAIS_UFS: AZUL},
+        labels={"estado_nutricional": "Estado nutricional",
+                "percentual": "% do grupo", "grupo": ""},
+        custom_data=["registros"],
+    )
+    fig.update_traces(
+        hovertemplate="%{x}<br>%{y:.1f}% do grupo<br>%{customdata[0]} registros<extra></extra>"
+    )
+    fig.update_yaxes(ticksuffix="%")
     return _aplicar_tema(fig)
