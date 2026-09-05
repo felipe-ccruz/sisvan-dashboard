@@ -2,7 +2,9 @@
 
 Reúne o fluxo completo de uma página de análise: sidebar → busca na API → KPIs →
 gráficos → tabela. Existe para que as páginas (nacional e Pará) compartilhem
-exatamente a mesma estrutura, mudando apenas o recorte de UF.
+exatamente a mesma estrutura, mudando apenas o recorte de UF: a página do Pará
+passa ``uf_fixa="PA"`` e a nacional deixa a UF livre, ganhando em troca a seção de
+comparação entre estados.
 
 O cache de sessão (``st.cache_data``) mora aqui, envolvendo a chamada à API mais a
 transformação — é o ponto onde as duas coisas se juntam.
@@ -68,6 +70,23 @@ def _renderizar_kpis(df: pd.DataFrame, df_bruto: pd.DataFrame, max_registros: in
     )
 
 
+def _renderizar_comparacao_ufs(df: pd.DataFrame, uf_destaque: str) -> None:
+    """Seção que confronta a UF em foco com os demais estados do recorte."""
+    fig_ufs = charts.grafico_ufs(df, uf_destaque=uf_destaque)
+    fig_comparado = charts.grafico_estado_nutricional_comparado(
+        df, uf_destaque=uf_destaque
+    )
+    if fig_ufs is None and fig_comparado is None:
+        return
+
+    st.subheader(f"Comparação entre estados ({uf_destaque} em destaque)")
+    if fig_ufs is not None:
+        st.plotly_chart(fig_ufs, use_container_width=True)
+    if fig_comparado is not None:
+        st.plotly_chart(fig_comparado, use_container_width=True)
+    st.markdown("---")
+
+
 def _renderizar_graficos(df: pd.DataFrame) -> None:
     """Grade de gráficos comum às duas páginas."""
     linha1_esq, linha1_dir = st.columns(2)
@@ -113,6 +132,9 @@ def renderizar_painel(
     descricao: str,
     chave_estado: str,
     nome_arquivo_csv: str,
+    uf_fixa: str | None = None,
+    comparar_ufs: bool = False,
+    uf_destaque: str = charts.UF_DESTAQUE_PADRAO,
 ) -> None:
     """Desenha a página inteira: cabeçalho, sidebar, KPIs, gráficos e tabela.
 
@@ -127,11 +149,18 @@ def renderizar_painel(
         página usa a sua, para que os dados de uma não vazem para a outra.
     nome_arquivo_csv : str
         Nome do arquivo oferecido no botão de download.
+    uf_fixa : str | None
+        UF à qual a página está presa. ``None`` deixa o seletor de UF livre.
+    comparar_ufs : bool
+        Quando ``True``, exibe a seção comparativa entre estados (só faz sentido
+        na página nacional, onde o recorte pode trazer mais de uma UF).
+    uf_destaque : str
+        UF realçada nos gráficos comparativos.
     """
     st.title(titulo)
     st.caption(descricao)
 
-    opcoes = renderizar_sidebar()
+    opcoes = renderizar_sidebar(uf_fixa=uf_fixa)
 
     # Guarda o último resultado na sessão para sobreviver a reruns de filtros de cliente.
     if opcoes["buscar"]:
@@ -178,6 +207,8 @@ def renderizar_painel(
     # ---- Conteúdo ----
     _renderizar_kpis(df, df_bruto, opcoes["max_registros"])
     st.markdown("---")
+    if comparar_ufs:
+        _renderizar_comparacao_ufs(df, uf_destaque)
     _renderizar_graficos(df)
     _renderizar_tabela(df, nome_arquivo_csv)
 
