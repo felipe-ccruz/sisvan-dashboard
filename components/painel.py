@@ -41,7 +41,7 @@ def carregar_dados(filtros_api: dict, max_registros: int) -> pd.DataFrame:
 def _mostrar(coluna, figura) -> None:
     """Renderiza a figura na coluna, ou uma mensagem se não houver dados."""
     if figura is not None:
-        coluna.plotly_chart(figura, use_container_width=True)
+        coluna.plotly_chart(figura, width="stretch")
     else:
         coluna.info("Sem dados suficientes para este gráfico.")
 
@@ -81,9 +81,9 @@ def _renderizar_comparacao_ufs(df: pd.DataFrame, uf_destaque: str) -> None:
 
     st.subheader(f"Comparação entre estados ({uf_destaque} em destaque)")
     if fig_ufs is not None:
-        st.plotly_chart(fig_ufs, use_container_width=True)
+        st.plotly_chart(fig_ufs, width="stretch")
     if fig_comparado is not None:
-        st.plotly_chart(fig_comparado, use_container_width=True)
+        st.plotly_chart(fig_comparado, width="stretch")
     st.markdown("---")
 
 
@@ -104,18 +104,18 @@ def _renderizar_graficos(df: pd.DataFrame) -> None:
     # Gráficos de largura total (quando fizerem sentido).
     fig_estado_sexo = charts.grafico_estado_por_sexo(df)
     if fig_estado_sexo is not None:
-        st.plotly_chart(fig_estado_sexo, use_container_width=True)
+        st.plotly_chart(fig_estado_sexo, width="stretch")
 
     fig_temporal = charts.grafico_serie_temporal(df)
     if fig_temporal is not None:
-        st.plotly_chart(fig_temporal, use_container_width=True)
+        st.plotly_chart(fig_temporal, width="stretch")
 
 
 def _renderizar_tabela(df: pd.DataFrame, nome_arquivo: str) -> None:
     """Tabela de dados + botão de download."""
     st.markdown("---")
     with st.expander("📋 Ver tabela de dados"):
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
         st.download_button(
             "⬇️ Baixar CSV",
             data=df.to_csv(index=False).encode("utf-8-sig"),

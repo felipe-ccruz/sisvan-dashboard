@@ -174,7 +174,7 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
         help="Teto de paginação. Valores altos deixam a busca mais lenta.",
     )
 
-    buscar = st.sidebar.button("🔍 Buscar dados", type="primary", use_container_width=True)
+    buscar = st.sidebar.button("🔍 Buscar dados", type="primary", width="stretch")
 
     # ---- Monta os dicionários de filtro ----
     filtros_api = _montar_filtros_api(
