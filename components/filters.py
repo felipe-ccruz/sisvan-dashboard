@@ -3,7 +3,7 @@
 Distingue dois tipos de filtro:
 
 - **Filtros de API**: viram parâmetros de query e reduzem o volume baixado
-  (UF, município, competência, fase da vida, escolaridade, gestante, idade).
+  (UF, município, competência, fase da vida, escolaridade, gestante).
 - **Filtros de cliente**: aplicados sobre o ``DataFrame`` já baixado, sem nova
   requisição (sexo, raça/cor). Assim o usuário refina a visualização de graça.
 
@@ -145,10 +145,6 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
         "Gestante", options=list(GESTANTE_OPCOES.keys()), horizontal=True
     )
 
-    idade_min, idade_max = formulario.slider(
-        "Faixa de idade (anos)", min_value=0, max_value=120, value=(0, 120)
-    )
-
     # ---- Volume ----
     formulario.subheader("Volume")
     max_registros = formulario.slider(
@@ -184,8 +180,6 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
         fases_rotulos=fases_rotulos,
         escolaridade_rotulo=escolaridade_rotulo,
         gestante_rotulo=gestante_rotulo,
-        idade_min=idade_min,
-        idade_max=idade_max,
     )
 
     filtros_cliente = {"sexo": sexo, "raca_cor": raca_cor}
@@ -241,8 +235,6 @@ def _montar_filtros_api(
     fases_rotulos: list[str],
     escolaridade_rotulo: str,
     gestante_rotulo: str,
-    idade_min: int,
-    idade_max: int,
 ) -> dict:
     """Converte as escolhas da UI em parâmetros aceitos pela API."""
     filtros: dict = {}
@@ -268,12 +260,6 @@ def _montar_filtros_api(
     gestante = GESTANTE_OPCOES.get(gestante_rotulo)
     if gestante is not None:
         filtros["gestante"] = gestante
-
-    # Só envia idade quando difere do intervalo completo (evita filtro à toa).
-    if idade_min > 0:
-        filtros["idade_minima"] = idade_min
-    if idade_max < 120:
-        filtros["idade_maxima"] = idade_max
 
     return filtros
 
