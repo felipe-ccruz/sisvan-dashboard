@@ -109,10 +109,15 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   SISVAN são mantidos como vêm (`codigo_municipio`, `fase_vida`, etc.).
 - **Estilo**: PEP 8, aspas duplas, type hints quando ajudam a leitura. Comentários em
   blocos com cabeçalho `# ---` separando seções (padrão do `tabviva`).
-- **Gráficos**: paleta categórica de ordem fixa em `components/charts.py`; barra de
-  série única usa um único tom (a categoria já está no eixo). Nos gráficos
-  comparativos, a UF em foco (`UF_DESTAQUE_PADRAO = "PA"`) ganha o verde e as demais
-  ficam no azul — é destaque, não categoria.
+- **Gráficos**: as cores vêm de uma paleta contínua do Plotly escolhida no topo da
+  página (`PALETAS` em `components/charts.py`: Sunset — padrão —, Magma, Turbo,
+  Mint, Viridis, Aggrnyl). Toda função de gráfico recebe `paleta: str =
+  PALETA_PADRAO`; as pontas de cada escala são cortadas para ficarem visíveis nos
+  temas claro e escuro. A cor fica presa à entidade (fase da vida, raça/cor, grupo
+  nutricional), nunca à posição da barra. **Exceção: sexo** é sempre azul e rosa
+  (`CORES_SEXO`), fora da paleta. Nos comparativos, a UF em foco
+  (`UF_DESTAQUE_PADRAO = "PA"`) e as demais ficam nas duas pontas da paleta — é
+  destaque, não categoria.
 
 ## Notas de domínio
 
