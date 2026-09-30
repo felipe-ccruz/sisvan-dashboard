@@ -145,8 +145,10 @@ def consultar_estado_nutricional(
 
     Como a API limita cada requisição a 20 itens, o teto vira um número conhecido de
     páginas, baixadas com até ``paralelas`` requisições simultâneas. A API não
-    informa o total do recorte: quando uma página volta incompleta, os dados
-    acabaram, e as páginas seguintes deixam de ser pedidas (o total encolhe).
+    informa o total do recorte: quando uma página volta vazia, os dados acabaram, e
+    as páginas seguintes deixam de ser pedidas (o total encolhe). Página incompleta
+    não basta como sinal de fim — a API às vezes devolve menos de 20 no meio dos
+    dados.
 
     Parameters
     ----------
@@ -221,9 +223,11 @@ def consultar_estado_nutricional(
                 pagina = futuro.result()  # propaga SisvanAPIError
                 paginas[indice] = pagina
 
-                # Página incompleta => acabaram os dados desse recorte.
-                if len(pagina) < LIMITE_MAXIMO_API:
-                    total_paginas = min(total_paginas, indice + 1)
+                # Só página vazia marca o fim. A API às vezes devolve menos de 20
+                # itens no meio dos dados (registros perdidos no servidor, de forma
+                # intermitente); parar numa página incompleta cortaria o resto.
+                if not pagina:
+                    total_paginas = min(total_paginas, indice)
 
             validas = [i for i in paginas if i < total_paginas]
             if ao_progredir is not None:

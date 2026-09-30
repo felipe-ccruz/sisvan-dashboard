@@ -102,7 +102,14 @@ def carregar_dados(filtros_api: dict, max_registros: int) -> pd.DataFrame:
             f"{total_paginas} páginas de {LIMITE_MAXIMO_API} registros a consultar…"
         )
 
+        # Total de páginas no primeiro e no último aviso: se encolheu, o recorte
+        # acabou antes do teto. (Contar registros não serve: a API às vezes perde
+        # alguns no meio das páginas, e a carga fica um pouco abaixo do teto.)
+        totais: dict[str, int] = {}
+
         def ao_progredir(concluidas: int, total: int, registros: int) -> None:
+            totais.setdefault("inicial", total)
+            totais["final"] = total
             fracao = concluidas / total if total else 1.0
             decorrido = time.monotonic() - inicio
             restante = decorrido / concluidas * (total - concluidas) if concluidas else 0
@@ -126,7 +133,7 @@ def carregar_dados(filtros_api: dict, max_registros: int) -> pd.DataFrame:
         df = registros_para_df(registros)
         duracao = _formatar_duracao(time.monotonic() - inicio)
         resumo = f"{_formatar_numero(len(df))} registros carregados em {duracao}"
-        if len(df) < max_registros:
+        if totais and totais["final"] < totais["inicial"]:
             resumo += " — o recorte acabou antes do teto"
         status.update(label=resumo, state="complete", expanded=False)
 
