@@ -6,33 +6,128 @@ exatamente a mesma estrutura, mudando apenas o recorte de UF: a página do Pará
 passa ``uf_fixa="PA"`` e a nacional deixa a UF livre, ganhando em troca a seção de
 comparação entre estados.
 
-O cache de sessão (``st.cache_data``) mora aqui, envolvendo a chamada à API mais a
+O cache dos recortes baixados mora aqui, envolvendo a chamada à API mais a
 transformação — é o ponto onde as duas coisas se juntam.
 """
+
+import math
+import time
 
 import pandas as pd
 import streamlit as st
 
-from api.sisvan import SisvanAPIError, consultar_estado_nutricional
+from api.sisvan import LIMITE_MAXIMO_API, SisvanAPIError, consultar_estado_nutricional
 from components import charts
 from components.filters import aplicar_filtros_cliente, renderizar_sidebar
 from utils.data import registros_para_df
 
+# --------------------------------------
+# CACHE DE RECORTES
+# --------------------------------------
+# Não dá para usar ``st.cache_data`` na carga: ele regrava os elementos desenhados
+# dentro da função (a barra de progresso) e quebra ao reaproveitar o cache. Por isso
+# o cache é um dicionário global simples, com validade e limite de entradas.
+VALIDADE_CACHE_S = 3600
+MAX_RECORTES_EM_CACHE = 20
+
+
+@st.cache_resource
+def _recortes_em_cache() -> dict:
+    """Armazém global (compartilhado entre sessões): chave -> (instante, DataFrame)."""
+    return {}
+
+
+def _chave_recorte(filtros_api: dict, max_registros: int) -> tuple:
+    return tuple(sorted(filtros_api.items())), max_registros
+
+
+def _ler_cache(chave: tuple) -> pd.DataFrame | None:
+    entrada = _recortes_em_cache().get(chave)
+    if entrada is None:
+        return None
+    instante, df = entrada
+    if time.monotonic() - instante > VALIDADE_CACHE_S:
+        _recortes_em_cache().pop(chave, None)
+        return None
+    return df.copy()
+
+
+def _gravar_cache(chave: tuple, df: pd.DataFrame) -> None:
+    cache = _recortes_em_cache()
+    cache[chave] = (time.monotonic(), df)
+    # Descarta os recortes mais antigos quando passa do limite.
+    while len(cache) > MAX_RECORTES_EM_CACHE:
+        mais_antiga = min(cache, key=lambda c: cache[c][0])
+        cache.pop(mais_antiga)
+
 
 # --------------------------------------
-# CARGA DE DADOS (com cache de sessão)
+# CARGA DE DADOS (com tela de progresso)
 # --------------------------------------
-@st.cache_data(show_spinner=False, ttl=3600)
+def _formatar_numero(valor: int) -> str:
+    return f"{valor:,}".replace(",", ".")
+
+
+def _formatar_duracao(segundos: float) -> str:
+    segundos = round(segundos)
+    if segundos < 60:
+        return f"{segundos} s"
+    return f"{segundos // 60} min {segundos % 60:02d} s"
+
+
 def carregar_dados(filtros_api: dict, max_registros: int) -> pd.DataFrame:
-    """Baixa e trata os dados da API. Cacheado por recorte + volume.
+    """Baixa e trata os dados da API, mostrando o progresso por página.
 
-    O cache evita repetir requisições paginadas quando o usuário só mexe nos
-    filtros de cliente (sexo, raça/cor).
+    O 100% da barra é o teto escolhido (a API não informa o total do recorte). Se o
+    recorte acabar antes, a barra se ajusta e o resumo avisa. Recortes já baixados
+    voltam do cache, sem nova requisição.
     """
-    registros = consultar_estado_nutricional(
-        filtros=filtros_api, max_registros=max_registros
-    )
-    return registros_para_df(registros)
+    chave = _chave_recorte(filtros_api, max_registros)
+    em_cache = _ler_cache(chave)
+    if em_cache is not None:
+        st.toast("Esse recorte já estava carregado — dados reaproveitados.", icon="♻️")
+        return em_cache
+
+    total_paginas = math.ceil(max_registros / LIMITE_MAXIMO_API)
+    inicio = time.monotonic()
+
+    with st.status("Carregando dados do SISVAN…", expanded=True) as status:
+        barra = st.progress(0.0, text="0%")
+        detalhe = st.empty()
+        detalhe.caption(
+            f"{total_paginas} páginas de {LIMITE_MAXIMO_API} registros a consultar…"
+        )
+
+        def ao_progredir(concluidas: int, total: int, registros: int) -> None:
+            fracao = concluidas / total if total else 1.0
+            decorrido = time.monotonic() - inicio
+            restante = decorrido / concluidas * (total - concluidas) if concluidas else 0
+            barra.progress(fracao, text=f"{fracao:.0%}")
+            detalhe.caption(
+                f"Página {concluidas} de {total} · {_formatar_numero(registros)} "
+                f"registros · {_formatar_duracao(decorrido)} decorridos · "
+                f"~{_formatar_duracao(restante)} restantes"
+            )
+
+        try:
+            registros = consultar_estado_nutricional(
+                filtros=filtros_api,
+                max_registros=max_registros,
+                ao_progredir=ao_progredir,
+            )
+        except SisvanAPIError:
+            status.update(label="Falha ao carregar os dados do SISVAN", state="error")
+            raise
+
+        df = registros_para_df(registros)
+        duracao = _formatar_duracao(time.monotonic() - inicio)
+        resumo = f"{_formatar_numero(len(df))} registros carregados em {duracao}"
+        if len(df) < max_registros:
+            resumo += " — o recorte acabou antes do teto"
+        status.update(label=resumo, state="complete", expanded=False)
+
+    _gravar_cache(chave, df)
+    return df
 
 
 # --------------------------------------
@@ -165,12 +260,9 @@ def renderizar_painel(
     # Guarda o último resultado na sessão para sobreviver a reruns de filtros de cliente.
     if opcoes["buscar"]:
         try:
-            with st.spinner(
-                "Consultando a API do SISVAN… isso pode levar alguns segundos."
-            ):
-                st.session_state[chave_estado] = carregar_dados(
-                    opcoes["filtros_api"], opcoes["max_registros"]
-                )
+            st.session_state[chave_estado] = carregar_dados(
+                opcoes["filtros_api"], opcoes["max_registros"]
+            )
         except SisvanAPIError as erro:
             st.error(
                 "Não foi possível consultar a API do SISVAN. Ela costuma ficar instável "
