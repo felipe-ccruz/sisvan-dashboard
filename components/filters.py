@@ -3,9 +3,10 @@
 Distingue dois tipos de filtro:
 
 - **Filtros de API**: viram parâmetros de query e reduzem o volume baixado
-  (UF, município, competência, fase da vida, escolaridade, gestante).
+  (UF, município, fase da vida, escolaridade, gestante).
 - **Filtros de cliente**: aplicados sobre o ``DataFrame`` já baixado, sem nova
-  requisição (sexo, raça/cor). Assim o usuário refina a visualização de graça.
+  requisição (sexo, raça/cor, período). Assim o usuário refina a visualização de
+  graça. O período é filtro de cliente por necessidade: a API não filtra por ano.
 
 A função :func:`renderizar_sidebar` desenha os controles e devolve as escolhas; o
 painel decide quando disparar a busca. Passando ``uf_fixa``, a UF deixa de ser
@@ -123,12 +124,6 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
 
     codigos_municipio = _seletor_municipio(uf_fixa, formulario)
 
-    competencia = formulario.text_input(
-        "Competência (AAAAMM)",
-        help="Ano e mês do acompanhamento. Ex.: 202301 para jan/2023.",
-        placeholder="ex.: 202301",
-    ).strip()
-
     fases_rotulos = formulario.multiselect(
         "Fase da vida",
         options=list(FASES_VIDA.values()),
@@ -176,7 +171,6 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     filtros_api = _montar_filtros_api(
         uf=uf,
         codigos_municipio=codigos_municipio,
-        competencia=competencia,
         fases_rotulos=fases_rotulos,
         escolaridade_rotulo=escolaridade_rotulo,
         gestante_rotulo=gestante_rotulo,
@@ -231,7 +225,6 @@ def _seletor_municipio(uf_fixa: str | None, recipiente) -> tuple[str, ...]:
 def _montar_filtros_api(
     uf: str,
     codigos_municipio: tuple[str, ...],
-    competencia: str,
     fases_rotulos: list[str],
     escolaridade_rotulo: str,
     gestante_rotulo: str,
@@ -245,8 +238,6 @@ def _montar_filtros_api(
     # consulta para cada (ver api.sisvan.consultar_estado_nutricional).
     if codigos_municipio:
         filtros["codigo_municipio"] = codigos_municipio
-    if competencia:
-        filtros["ano_mes_competencia"] = competencia
 
     # A API aceita apenas uma fase por requisição; usa a primeira selecionada.
     if fases_rotulos:
@@ -264,8 +255,39 @@ def _montar_filtros_api(
     return filtros
 
 
+def renderizar_filtro_anos(df: pd.DataFrame) -> tuple[int, int] | None:
+    """Desenha o slider de período com a faixa de anos presente nos dados baixados.
+
+    Fica com os filtros de cliente porque a API não filtra por ano (só por
+    competência, um mês por vez, e essa consulta costuma estourar o timeout). Chamado
+    depois da busca, já que a faixa depende do que veio. Devolve ``None`` quando não
+    há o que escolher (nenhum ano ou um ano só).
+    """
+    if "ano" not in df.columns:
+        return None
+    anos = df["ano"].dropna()
+    if anos.empty:
+        return None
+
+    inicio, fim = int(anos.min()), int(anos.max())
+    if inicio == fim:
+        st.sidebar.caption(f"Período: os dados baixados cobrem só {inicio}.")
+        return None
+
+    return st.sidebar.slider(
+        "Período (anos)",
+        min_value=inicio,
+        max_value=fim,
+        value=(inicio, fim),
+        help=(
+            "Filtra os anos presentes nos dados já baixados. A API não permite "
+            "escolher o ano na consulta e entrega do mais antigo para o mais novo."
+        ),
+    )
+
+
 def aplicar_filtros_cliente(df: pd.DataFrame, filtros_cliente: dict) -> pd.DataFrame:
-    """Aplica os recortes de sexo e raça/cor sobre o DataFrame já baixado."""
+    """Aplica os recortes de sexo, raça/cor e período sobre o DataFrame já baixado."""
     if df.empty:
         return df
 
@@ -281,6 +303,10 @@ def aplicar_filtros_cliente(df: pd.DataFrame, filtros_cliente: dict) -> pd.DataF
         alvo = {_normalizar(r) for r in raca_cor}
         mascara = resultado["raca_cor"].map(_normalizar).isin(alvo)
         resultado = resultado[mascara]
+
+    anos = filtros_cliente.get("anos")
+    if anos and "ano" in resultado.columns:
+        resultado = resultado[resultado["ano"].between(*anos)]
 
     return resultado
 

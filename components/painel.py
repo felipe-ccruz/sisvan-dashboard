@@ -18,7 +18,11 @@ import streamlit as st
 
 from api.sisvan import LIMITE_MAXIMO_API, SisvanAPIError, consultar_estado_nutricional
 from components import charts, mapas
-from components.filters import aplicar_filtros_cliente, renderizar_sidebar
+from components.filters import (
+    aplicar_filtros_cliente,
+    renderizar_filtro_anos,
+    renderizar_sidebar,
+)
 from utils.data import registros_para_df
 
 # --------------------------------------
@@ -319,7 +323,7 @@ def renderizar_painel(
         st.info(
             "👈 Defina os filtros na barra lateral e clique em **Buscar dados** para "
             "começar.\n\nDica: a API retorna no máximo 20 registros por página, então "
-            "recortes específicos (município + competência) trazem resultados mais "
+            "recortes específicos (município + fase da vida) trazem resultados mais "
             "rápidos e representativos."
         )
         st.stop()
@@ -333,11 +337,17 @@ def renderizar_painel(
         )
         st.stop()
 
-    df = aplicar_filtros_cliente(df_bruto, opcoes["filtros_cliente"])
+    # O período depende dos anos que vieram, por isso é desenhado só depois da busca.
+    filtros_cliente = {
+        **opcoes["filtros_cliente"],
+        "anos": renderizar_filtro_anos(df_bruto),
+    }
+    df = aplicar_filtros_cliente(df_bruto, filtros_cliente)
 
     if df.empty:
         st.warning(
-            "Nenhum registro após aplicar os filtros de sexo/raça. Ajuste-os na sidebar."
+            "Nenhum registro após aplicar os filtros de sexo, raça/cor e período. "
+            "Ajuste-os na sidebar."
         )
         st.stop()
 
