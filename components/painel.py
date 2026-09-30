@@ -17,7 +17,7 @@ import pandas as pd
 import streamlit as st
 
 from api.sisvan import LIMITE_MAXIMO_API, SisvanAPIError, consultar_estado_nutricional
-from components import charts
+from components import charts, mapas
 from components.filters import aplicar_filtros_cliente, renderizar_sidebar
 from utils.data import registros_para_df
 
@@ -269,6 +269,7 @@ def renderizar_painel(
     nome_arquivo_csv: str,
     uf_fixa: str | None = None,
     comparar_ufs: bool = False,
+    mapa_municipios: bool = False,
     uf_destaque: str = charts.UF_DESTAQUE_PADRAO,
 ) -> None:
     """Desenha a página inteira: cabeçalho, sidebar, KPIs, gráficos e tabela.
@@ -289,6 +290,9 @@ def renderizar_painel(
     comparar_ufs : bool
         Quando ``True``, exibe a seção comparativa entre estados (só faz sentido
         na página nacional, onde o recorte pode trazer mais de uma UF).
+    mapa_municipios : bool
+        Quando ``True``, exibe o mapa de registros por município da ``uf_fixa``
+        (precisa haver malha para ela em ``dimensoes/``).
     uf_destaque : str
         UF realçada nos gráficos comparativos.
     """
@@ -340,6 +344,8 @@ def renderizar_painel(
     # ---- Conteúdo ----
     _renderizar_kpis(df, df_bruto, opcoes["max_registros"])
     st.markdown("---")
+    if mapa_municipios and uf_fixa:
+        mapas.renderizar_mapa_registros(df, uf_fixa, paleta)
     if comparar_ufs:
         _renderizar_comparacao_ufs(df, uf_destaque, paleta)
     _renderizar_graficos(df, paleta)

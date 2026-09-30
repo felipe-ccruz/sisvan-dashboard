@@ -18,4 +18,5 @@ renderizar_painel(
     chave_estado="df_para",
     nome_arquivo_csv="sisvan_estado_nutricional_para.csv",
     uf_fixa=UF,
+    mapa_municipios=True,
 )
