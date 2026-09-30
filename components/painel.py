@@ -201,6 +201,19 @@ def _renderizar_graficos(df: pd.DataFrame) -> None:
     if fig_estado_sexo is not None:
         st.plotly_chart(fig_estado_sexo, width="stretch")
 
+    fig_por_ano = charts.grafico_estado_nutricional_por_ano(df)
+    if fig_por_ano is not None:
+        st.plotly_chart(fig_por_ano, width="stretch")
+    else:
+        # Aviso em vez de sumir: com a API entregando do mais antigo para o mais
+        # novo, cargas pequenas costumam cobrir um ano só.
+        st.info(
+            "O gráfico de estado nutricional por ano precisa de pelo menos dois anos "
+            "no recorte. A API entrega os registros do mais antigo para o mais novo, "
+            "então cargas pequenas costumam cobrir um ano só — aumente o teto ou "
+            "refine o recorte (ex.: um município)."
+        )
+
     fig_temporal = charts.grafico_serie_temporal(df)
     if fig_temporal is not None:
         st.plotly_chart(fig_temporal, width="stretch")

@@ -14,7 +14,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from utils.data import rotular
+from utils.data import (
+    ORDEM_GRUPOS_ESTADO_NUTRICIONAL,
+    agrupar_estado_nutricional,
+    rotular,
+)
 
 # --------------------------------------
 # PALETA E TEMA
@@ -41,6 +45,19 @@ CORES_SEXO = {"Feminino": "#e87ba4", "Masculino": "#2a78d6"}
 VERDE = PALETA_CATEGORICA[1]
 UF_DESTAQUE_PADRAO = "PA"
 ROTULO_DEMAIS_UFS = "Demais estados"
+
+# Estado nutricional é ordinal com um meio neutro (eutrofia), então usa escala
+# divergente, não a paleta categórica: azul para o déficit, vermelho para o excesso,
+# cinza no meio, mais escuro quanto mais extremo. Cada braço foi validado como rampa
+# ordinal (tom único, luminosidade monotônica, contraste >= 2:1 no fundo claro).
+CORES_ESTADO_NUTRICIONAL = {
+    "Magreza acentuada": "#184f95",
+    "Magreza / baixo peso": "#5598e7",
+    "Eutrofia": "#8a8984",
+    "Risco de sobrepeso": "#ee8a88",
+    "Sobrepeso": "#e34948",
+    "Obesidade": "#a52a2a",
+}
 
 
 def _aplicar_tema(fig: go.Figure) -> go.Figure:
@@ -179,6 +196,49 @@ def grafico_serie_temporal(df: pd.DataFrame) -> go.Figure | None:
                   title="Acompanhamentos por competência",
                   labels={"competencia": "Competência", "registros": "Registros"})
     fig.update_traces(line_color=AZUL, line_width=2)
+    return _aplicar_tema(fig)
+
+
+def grafico_estado_nutricional_por_ano(df: pd.DataFrame) -> go.Figure | None:
+    """Casos registrados por ano, uma linha por estado nutricional (agrupado).
+
+    Só faz sentido com pelo menos dois anos no recorte.
+    """
+    if df.empty or not {"ano", "estado_nutricional"}.issubset(df.columns):
+        return None
+
+    dados = df.assign(
+        grupo=agrupar_estado_nutricional(df["estado_nutricional"])
+    ).dropna(subset=["ano", "grupo"])
+    if dados["ano"].nunique() < 2:
+        return None
+
+    # Grade ano x grupo: num ano com dados, um grupo sem casos vale 0. Já um ano sem
+    # nenhum registro baixado fica vazio (NaN) e quebra a linha, em vez de ligar os
+    # vizinhos como se houvesse medição no meio.
+    tabela = pd.crosstab(dados["ano"].astype(int), dados["grupo"])
+    ordem = [g for g in ORDEM_GRUPOS_ESTADO_NUTRICIONAL if g in tabela.columns]
+    anos = range(tabela.index.min(), tabela.index.max() + 1)
+    tabela = (
+        tabela[ordem]
+        .reindex(anos)
+        .rename_axis(index="ano", columns="grupo")
+        .reset_index()
+        .melt(id_vars="ano", var_name="grupo", value_name="registros")
+    )
+
+    fig = px.line(
+        tabela, x="ano", y="registros", color="grupo", markers=True,
+        title="Casos registrados por ano, por estado nutricional",
+        color_discrete_map=CORES_ESTADO_NUTRICIONAL,
+        category_orders={"grupo": ordem},
+        labels={"ano": "Ano", "registros": "Registros", "grupo": "Estado nutricional"},
+    )
+    fig.update_traces(
+        line_width=2, marker_size=8, hovertemplate="%{y} registros"
+    )
+    fig.update_layout(hovermode="x unified")
+    fig.update_xaxes(dtick=1, tickformat="d")
     return _aplicar_tema(fig)
 
 

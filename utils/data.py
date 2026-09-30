@@ -161,3 +161,47 @@ def rotular(colunas: list[str] | str) -> list[str] | str:
     if isinstance(colunas, str):
         return COLUNAS_ROTULOS.get(colunas, colunas)
     return [COLUNAS_ROTULOS.get(coluna, coluna) for coluna in colunas]
+
+
+# --------------------------------------
+# AGRUPAMENTO DO ESTADO NUTRICIONAL
+# --------------------------------------
+# Cada faixa etária usa a própria escala (criança: "Eutrofia"; adulto e idoso:
+# "Adequado ou eutrófico"; o adulto ainda divide a obesidade em graus). Para
+# acompanhar o recorte inteiro ao longo do tempo, os rótulos equivalentes viram um
+# grupo só. A ordem vai do déficit ao excesso, com a eutrofia no meio.
+GRUPOS_ESTADO_NUTRICIONAL = {
+    "Magreza acentuada": ["Magreza acentuada"],
+    "Magreza / baixo peso": ["Magreza", "Baixo peso"],
+    "Eutrofia": ["Eutrofia", "Adequado ou eutrófico"],
+    "Risco de sobrepeso": ["Risco de sobrepeso"],
+    "Sobrepeso": ["Sobrepeso"],
+    "Obesidade": [
+        "Obesidade",
+        "Obesidade Grau I",
+        "Obesidade Grau II",
+        "Obesidade Grau III",
+    ],
+}
+ORDEM_GRUPOS_ESTADO_NUTRICIONAL = list(GRUPOS_ESTADO_NUTRICIONAL)
+
+# Casamento pelo esqueleto do texto, tolerante a acento perdido e caixa.
+_GRUPO_POR_ESQUELETO = {
+    _esqueleto(rotulo): grupo
+    for grupo, rotulos in GRUPOS_ESTADO_NUTRICIONAL.items()
+    for rotulo in rotulos
+}
+
+
+def agrupar_estado_nutricional(serie: pd.Series) -> pd.Series:
+    """Converte os rótulos de estado nutricional nos grupos harmonizados.
+
+    Rótulos desconhecidos (ou ausentes) viram ``NA``.
+    """
+
+    def agrupar(valor: object) -> object:
+        if not isinstance(valor, str):
+            return pd.NA
+        return _GRUPO_POR_ESQUELETO.get(_esqueleto(valor), pd.NA)
+
+    return serie.map(agrupar)
