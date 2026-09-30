@@ -176,6 +176,20 @@ def renderizar_sidebar(uf_fixa: str) -> dict:
         "Raça/Cor",
         options=["Branca", "Preta", "Amarela", "Parda", "Indígena", "Sem informação"],
     )
+    # Faixa fixa (os anos que a API tem), sempre visível. Filtra só o que já foi
+    # baixado: a API não filtra por faixa de anos, e o ano da busca é escolhido em
+    # "Ano (competência)", no formulário.
+    periodo = st.sidebar.slider(
+        "Período (anos)",
+        min_value=min(ANOS_COMPETENCIA),
+        max_value=max(ANOS_COMPETENCIA),
+        value=(min(ANOS_COMPETENCIA), max(ANOS_COMPETENCIA)),
+        help=(
+            "Filtra os anos dos dados já baixados, sem nova busca. Anos que não "
+            "vieram na busca deixam os gráficos vazios — para buscar um ano, use "
+            "\"Ano (competência)\" no recorte."
+        ),
+    )
 
     # ---- Monta os dicionários de filtro ----
     filtros_api = _montar_filtros_api(
@@ -188,7 +202,7 @@ def renderizar_sidebar(uf_fixa: str) -> dict:
         gestante_rotulo=gestante_rotulo,
     )
 
-    filtros_cliente = {"sexo": sexo, "raca_cor": raca_cor}
+    filtros_cliente = {"sexo": sexo, "raca_cor": raca_cor, "anos": periodo}
 
     return {
         "filtros_api": filtros_api,
@@ -266,37 +280,6 @@ def _montar_filtros_api(
         filtros["gestante"] = gestante
 
     return filtros
-
-
-def renderizar_filtro_anos(df: pd.DataFrame) -> tuple[int, int] | None:
-    """Desenha o slider de período com a faixa de anos presente nos dados baixados.
-
-    Fica com os filtros de cliente porque a API não filtra por faixa de anos (só
-    por competência, um mês por vez; o ano único é escolhido no formulário). Chamado
-    depois da busca, já que a faixa depende do que veio. Devolve ``None`` quando não
-    há o que escolher (nenhum ano ou um ano só).
-    """
-    if "ano" not in df.columns:
-        return None
-    anos = df["ano"].dropna()
-    if anos.empty:
-        return None
-
-    inicio, fim = int(anos.min()), int(anos.max())
-    if inicio == fim:
-        st.sidebar.caption(f"Período: os dados baixados cobrem só {inicio}.")
-        return None
-
-    return st.sidebar.slider(
-        "Período (anos)",
-        min_value=inicio,
-        max_value=fim,
-        value=(inicio, fim),
-        help=(
-            "Filtra os anos presentes nos dados já baixados, sem nova busca. Para "
-            "consultar um ano específico, use \"Ano (competência)\" no recorte."
-        ),
-    )
 
 
 def aplicar_filtros_cliente(df: pd.DataFrame, filtros_cliente: dict) -> pd.DataFrame:
