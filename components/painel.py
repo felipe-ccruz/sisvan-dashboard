@@ -133,6 +133,33 @@ def carregar_dados(filtros_api: dict, max_registros: int) -> pd.DataFrame:
 # --------------------------------------
 # BLOCOS DA PÁGINA
 # --------------------------------------
+# A paleta escolhida vale para as duas páginas: fica numa chave própria da sessão.
+CHAVE_PALETA = "paleta_graficos"
+
+
+def _renderizar_seletor_paleta() -> str:
+    """Seletor da paleta dos gráficos, com uma faixa de amostra ao lado."""
+    # Streamlit apaga o estado de um widget quando a página troca; regravar a chave
+    # antes de desenhá-lo mantém a escolha ao navegar entre as páginas.
+    st.session_state[CHAVE_PALETA] = st.session_state.get(
+        CHAVE_PALETA, charts.PALETA_PADRAO
+    )
+    coluna_seletor, coluna_amostra = st.columns([1, 3], vertical_alignment="bottom")
+    paleta = coluna_seletor.selectbox(
+        "Paleta dos gráficos",
+        options=list(charts.PALETAS),
+        key=CHAVE_PALETA,
+        help="Vale para todos os gráficos, menos o de sexo (sempre azul e rosa).",
+    )
+    gradiente = ", ".join(charts.amostrar_paleta(paleta, 9))
+    coluna_amostra.markdown(
+        f'<div style="height: 14px; border-radius: 7px; margin-bottom: 14px; '
+        f'background: linear-gradient(90deg, {gradiente});"></div>',
+        unsafe_allow_html=True,
+    )
+    return paleta
+
+
 def _mostrar(coluna, figura) -> None:
     """Renderiza a figura na coluna, ou uma mensagem se não houver dados."""
     if figura is not None:
@@ -165,11 +192,11 @@ def _renderizar_kpis(df: pd.DataFrame, df_bruto: pd.DataFrame, max_registros: in
     )
 
 
-def _renderizar_comparacao_ufs(df: pd.DataFrame, uf_destaque: str) -> None:
+def _renderizar_comparacao_ufs(df: pd.DataFrame, uf_destaque: str, paleta: str) -> None:
     """Seção que confronta a UF em foco com os demais estados do recorte."""
-    fig_ufs = charts.grafico_ufs(df, uf_destaque=uf_destaque)
+    fig_ufs = charts.grafico_ufs(df, uf_destaque=uf_destaque, paleta=paleta)
     fig_comparado = charts.grafico_estado_nutricional_comparado(
-        df, uf_destaque=uf_destaque
+        df, uf_destaque=uf_destaque, paleta=paleta
     )
     if fig_ufs is None and fig_comparado is None:
         return
@@ -182,26 +209,26 @@ def _renderizar_comparacao_ufs(df: pd.DataFrame, uf_destaque: str) -> None:
     st.markdown("---")
 
 
-def _renderizar_graficos(df: pd.DataFrame) -> None:
+def _renderizar_graficos(df: pd.DataFrame, paleta: str) -> None:
     """Grade de gráficos comum às duas páginas."""
     linha1_esq, linha1_dir = st.columns(2)
-    _mostrar(linha1_esq, charts.grafico_estado_nutricional(df))
-    _mostrar(linha1_dir, charts.grafico_fase_vida(df))
+    _mostrar(linha1_esq, charts.grafico_estado_nutricional(df, paleta=paleta))
+    _mostrar(linha1_dir, charts.grafico_fase_vida(df, paleta=paleta))
 
     linha2_esq, linha2_dir = st.columns(2)
     _mostrar(linha2_esq, charts.grafico_sexo(df))
-    _mostrar(linha2_dir, charts.grafico_raca_cor(df))
+    _mostrar(linha2_dir, charts.grafico_raca_cor(df, paleta=paleta))
 
     linha3_esq, linha3_dir = st.columns(2)
-    _mostrar(linha3_esq, charts.grafico_imc(df))
-    _mostrar(linha3_dir, charts.grafico_municipios(df))
+    _mostrar(linha3_esq, charts.grafico_imc(df, paleta=paleta))
+    _mostrar(linha3_dir, charts.grafico_municipios(df, paleta=paleta))
 
     # Gráficos de largura total (quando fizerem sentido).
     fig_estado_sexo = charts.grafico_estado_por_sexo(df)
     if fig_estado_sexo is not None:
         st.plotly_chart(fig_estado_sexo, width="stretch")
 
-    fig_por_ano = charts.grafico_estado_nutricional_por_ano(df)
+    fig_por_ano = charts.grafico_estado_nutricional_por_ano(df, paleta=paleta)
     if fig_por_ano is not None:
         st.plotly_chart(fig_por_ano, width="stretch")
     else:
@@ -214,7 +241,7 @@ def _renderizar_graficos(df: pd.DataFrame) -> None:
             "refine o recorte (ex.: um município)."
         )
 
-    fig_temporal = charts.grafico_serie_temporal(df)
+    fig_temporal = charts.grafico_serie_temporal(df, paleta=paleta)
     if fig_temporal is not None:
         st.plotly_chart(fig_temporal, width="stretch")
 
@@ -267,6 +294,7 @@ def renderizar_painel(
     """
     st.title(titulo)
     st.caption(descricao)
+    paleta = _renderizar_seletor_paleta()
 
     opcoes = renderizar_sidebar(uf_fixa=uf_fixa)
 
@@ -313,8 +341,8 @@ def renderizar_painel(
     _renderizar_kpis(df, df_bruto, opcoes["max_registros"])
     st.markdown("---")
     if comparar_ufs:
-        _renderizar_comparacao_ufs(df, uf_destaque)
-    _renderizar_graficos(df)
+        _renderizar_comparacao_ufs(df, uf_destaque, paleta)
+    _renderizar_graficos(df, paleta)
     _renderizar_tabela(df, nome_arquivo_csv)
 
     st.caption("Fonte: API pública do SISVAN / Ministério da Saúde · Projeto PET-Saúde.")
