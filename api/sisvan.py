@@ -151,7 +151,10 @@ def consultar_estado_nutricional(
     Parameters
     ----------
     filtros : dict | None
-        Parâmetros de query da API.
+        Parâmetros de query da API. ``codigo_municipio`` pode ser uma lista de
+        códigos: a API só aceita um por requisição, então cada município vira uma
+        consulta própria e o teto é dividido entre eles (ver
+        :func:`_consultar_varios_municipios`).
     max_registros : int
         Teto de registros a baixar. Protege contra baixar a base inteira.
     timeout, tentativas, pausa
@@ -173,6 +176,21 @@ def consultar_estado_nutricional(
     SisvanAPIError
         Se alguma página falhar mesmo após as tentativas.
     """
+    codigos = _codigos_municipio(filtros)
+    if len(codigos) > 1:
+        return _consultar_varios_municipios(
+            filtros,
+            codigos,
+            max_registros,
+            timeout=timeout,
+            tentativas=tentativas,
+            pausa=pausa,
+            paralelas=paralelas,
+            ao_progredir=ao_progredir,
+        )
+    if codigos:
+        filtros = {**filtros, "codigo_municipio": codigos[0]}
+
     total_paginas = math.ceil(max_registros / LIMITE_MAXIMO_API)
     paginas: dict[int, list[dict]] = {}
     pendentes: dict[Future, int] = {}
@@ -228,3 +246,73 @@ def consultar_estado_nutricional(
         registro for indice in range(total_paginas) for registro in paginas[indice]
     ]
     return registros[:max_registros]
+
+
+# --------------------------------------
+# VÁRIOS MUNICÍPIOS
+# --------------------------------------
+def _codigos_municipio(filtros: dict | None) -> list[str]:
+    """Normaliza ``codigo_municipio`` (valor único ou lista) para uma lista."""
+    valor = (filtros or {}).get("codigo_municipio")
+    if valor in (None, ""):
+        return []
+    if isinstance(valor, (list, tuple, set)):
+        return [str(codigo) for codigo in valor if codigo not in (None, "")]
+    return [str(valor)]
+
+
+def _dividir_teto(max_registros: int, partes: int) -> list[int]:
+    """Divide o teto em cotas quase iguais (as primeiras levam a sobra).
+
+    Cada parte recebe ao menos 1 registro, mesmo que isso passe do teto quando há
+    mais partes que registros — melhor que deixar um município escolhido de fora.
+    """
+    base, sobra = divmod(max_registros, partes)
+    return [max(base + (1 if i < sobra else 0), 1) for i in range(partes)]
+
+
+def _consultar_varios_municipios(
+    filtros: dict,
+    codigos: list[str],
+    max_registros: int,
+    ao_progredir: AoProgredir | None = None,
+    **opcoes,
+) -> list[dict]:
+    """Faz uma consulta paginada por município e junta os resultados.
+
+    O teto é dividido igualmente entre os municípios: se fosse um teto único
+    consumido em sequência, o primeiro poderia esgotá-lo e os demais ficariam de
+    fora. O progresso é reportado como uma única barra, somando as páginas de
+    todos (o total encolhe quando algum município acaba antes da cota).
+    """
+    cotas = _dividir_teto(max_registros, len(codigos))
+    planejadas = [math.ceil(cota / LIMITE_MAXIMO_API) for cota in cotas]
+
+    registros: list[dict] = []
+    paginas_feitas = 0  # páginas dos municípios já concluídos
+
+    for indice, (codigo, cota) in enumerate(zip(codigos, cotas)):
+        restantes = sum(planejadas[indice + 1 :])
+        total_atual = [planejadas[indice]]
+
+        def repassar(concluidas: int, total: int, baixados: int) -> None:
+            total_atual[0] = total
+            if ao_progredir is not None:
+                ao_progredir(
+                    paginas_feitas + concluidas,
+                    paginas_feitas + total + restantes,
+                    # As páginas chegam inteiras (20); a cota corta o excedente.
+                    len(registros) + min(baixados, cota),
+                )
+
+        registros.extend(
+            consultar_estado_nutricional(
+                filtros={**filtros, "codigo_municipio": codigo},
+                max_registros=cota,
+                ao_progredir=repassar,
+                **opcoes,
+            )
+        )
+        paginas_feitas += total_atual[0]
+
+    return registros
