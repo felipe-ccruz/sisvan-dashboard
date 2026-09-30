@@ -95,7 +95,7 @@ O dashboard tem duas páginas, escolhidas no menu da barra lateral. Elas compart
 
 | Página | Filtro de UF | Filtro de município | Para que serve |
 |---|---|---|---|
-| 🌳 **Pará** (padrão) | Fixo em `PA` | Um ou mais municípios, pelo nome (padrão: todos) | Análise do estado, uso da SESPA. Toda consulta já sai filtrada pela UF; os demais filtros (município, competência, fase da vida) recortam dentro do Pará. Tem ainda o mapa **Registros por município**, que mostra onde a amostra baixada se concentra (e quais municípios ficaram sem nenhum registro). |
+| 🌳 **Pará** (padrão) | Fixo em `PA` | Um ou mais municípios, pelo nome (padrão: todos) | Análise do estado, uso da SESPA. Toda consulta já sai filtrada pela UF; os demais filtros (município, fase da vida, escolaridade) recortam dentro do Pará. Tem ainda o mapa **Registros por município**, que mostra onde a amostra baixada se concentra (e quais municípios ficaram sem nenhum registro). |
 | 🇧🇷 **Nacional** | Livre (`Todos` + as 27 UFs) | Travado em `Todos` | Panorama do Brasil e comparação: quando o recorte traz mais de uma UF, aparece a seção **Comparação entre estados**, com o Pará em destaque e a distribuição do estado nutricional em `PA` x demais estados (em percentual, já que os grupos têm tamanhos diferentes). |
 
 Cada página guarda seus dados em uma chave própria da sessão, então trocar de página não descarta a busca da outra.
@@ -156,9 +156,9 @@ Após o deploy, você receberá um link público que pode ser compartilhado com 
 ## Como usar o dashboard
 
 1. **Escolha a página** no menu da barra lateral: *Pará* (recorte estadual) ou *Nacional* (todas as UFs)
-2. **Selecione os filtros principais** na barra lateral (UF, município, fase de vida, período) — na página do Pará a UF já vem travada em `PA` e dá para escolher um ou mais municípios pelo nome (padrão: todos — com vários, o teto de registros é dividido igualmente entre eles); na nacional o município fica travado em *Todos*
+2. **Selecione os filtros principais** na barra lateral (UF, município, fase de vida, escolaridade, gestante) — na página do Pará a UF já vem travada em `PA` e dá para escolher um ou mais municípios pelo nome (padrão: todos — com vários, o teto de registros é dividido igualmente entre eles); na nacional o município fica travado em *Todos*
 3. Clique em **"Buscar dados"** — o sistema consultará a API do SISVAN com os parâmetros escolhidos
-4. Use os **filtros secundários** (sexo, raça/cor) para refinar a visualização sem fazer uma nova requisição
+4. Use os **filtros secundários** (sexo, raça/cor e o slider de **período**, em anos) para refinar a visualização sem fazer uma nova requisição. O período só mostra os anos que vieram na busca: a API não permite escolher o ano na consulta
 5. Explore os gráficos e a tabela de dados gerados automaticamente
 
 ---

@@ -140,8 +140,11 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   do cache de recortes, e ordenada para a mesma seleção cair na mesma entrada.
 - **Sem ordenação nem filtro de ano utilizável**: a API ignora parâmetros de
   ordenação, não informa o total e devolve em ordem de inserção (≈ cronológica, do
-  mais antigo). Sem competência, os primeiros milhares de registros são de 2008; e o
-  filtro `ano_mes_competencia` costuma estourar o timeout (502 após 60 s).
+  mais antigo): os primeiros milhares de registros são de 2008. O filtro
+  `ano_mes_competencia` costuma estourar o timeout (502 após 60 s), por isso saiu da
+  sidebar; no lugar há um slider de **período** (anos) que é filtro de cliente, com a
+  faixa dos anos que vieram na busca (`renderizar_filtro_anos`, desenhado depois dela).
+  A faixa de idade também saiu: a fase da vida já cobre esse recorte.
 - **Dimensões já vêm traduzidas** pela API (município, fase da vida, raça/cor,
   escolaridade, estado nutricional…). Não é preciso replicar tabelas de código→rótulo.
   A parte geográfica (lat/lon, regiões de saúde) vem da `dimensoes/dim_regiao.parquet`,
@@ -164,9 +167,10 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   recorte acabou e o total encolhe.
 - **Filtros em formulário**: os filtros de API ficam num `st.form` na sidebar — só o
   botão dispara a busca, para o usuário fechar o recorte antes de uma carga longa (e
-  para um clique no meio dela não interrompê-la). Sexo e raça/cor ficam fora do form.
+  para um clique no meio dela não interrompê-la). Sexo, raça/cor e período ficam
+  fora do form.
 - **Cache de recortes**: guarda o resultado por recorte + volume; filtros de cliente
-  (sexo, raça/cor) refinam sem nova requisição. Como a UF entra nos filtros, Pará e
+  (sexo, raça/cor, período) refinam sem nova requisição. Como a UF entra nos filtros, Pará e
   nacional têm entradas separadas.
 - **Recorte do Pará**: a SESPA é do Pará, então a página `paginas/para.py` prende a UF
   em `PA` e a nacional serve de comparação. Os municípios são escolhidos pelo nome,
