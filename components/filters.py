@@ -10,13 +10,17 @@ Distingue dois tipos de filtro:
 A função :func:`renderizar_sidebar` desenha os controles e devolve as escolhas; o
 painel decide quando disparar a busca. Passando ``uf_fixa``, a UF deixa de ser
 escolhível e todas as consultas da página ficam presas àquele estado — é o que
-separa a página do Pará da página nacional.
+separa a página do Pará da página nacional. O município só é escolhível com a UF
+fixada: os nomes vêm da ``dim_regiao`` (que cobre o Pará), e na página nacional o
+seletor fica travado em "Todos".
 """
 
 import unicodedata
 
 import pandas as pd
 import streamlit as st
+
+from utils.dimensoes import carregar_municipios
 
 # --------------------------------------
 # TABELAS DE REFERÊNCIA (dicionario.md)
@@ -26,16 +30,6 @@ UFS = [
     "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
     "SP", "SE", "TO",
 ]
-
-# Dois primeiros dígitos do código IBGE do município, por UF. Serve para avisar
-# quando o município digitado não pertence à UF fixada da página.
-CODIGOS_IBGE_UF = {
-    "RO": "11", "AC": "12", "AM": "13", "RR": "14", "PA": "15", "AP": "16",
-    "TO": "17", "MA": "21", "PI": "22", "CE": "23", "RN": "24", "PB": "25",
-    "PE": "26", "AL": "27", "SE": "28", "BA": "29", "MG": "31", "ES": "32",
-    "RJ": "33", "SP": "35", "PR": "41", "SC": "42", "RS": "43", "MS": "50",
-    "MT": "51", "GO": "52", "DF": "53",
-}
 
 # codigo_fase_vida -> rótulo
 FASES_VIDA = {
@@ -65,6 +59,19 @@ GESTANTE_OPCOES = {
     "Apenas gestantes": 1,
     "Não gestantes": 0,
 }
+
+
+# --------------------------------------
+# MUNICÍPIOS (dimensoes/dim_regiao.parquet)
+# --------------------------------------
+ROTULO_TODOS_MUNICIPIOS = "Todos"
+
+
+@st.cache_data(show_spinner=False)
+def _municipios_da_uf(uf: str) -> dict[str, str]:
+    """Código IBGE (6 dígitos) -> nome, em ordem alfabética. Cacheado: é estático."""
+    municipios = carregar_municipios(uf)
+    return dict(zip(municipios["mun_cod"], municipios["mun_nome"]))
 
 
 # --------------------------------------
@@ -110,24 +117,7 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     else:
         uf = st.sidebar.selectbox("Estado (UF)", options=["Todos"] + UFS, index=0)
 
-    prefixo_ibge = CODIGOS_IBGE_UF.get(uf_fixa or "")
-    codigo_municipio = st.sidebar.text_input(
-        "Código IBGE do município",
-        help=(
-            f"Opcional. Deve ser um município do {uf_fixa} (o código começa com "
-            f"{prefixo_ibge}). Deixe vazio para não filtrar."
-            if prefixo_ibge
-            else "Opcional. Ex.: 355030 (São Paulo). Deixe vazio para não filtrar."
-        ),
-        placeholder=f"começa com {prefixo_ibge}" if prefixo_ibge else "ex.: 355030",
-    ).strip()
-
-    # Município fora da UF fixada zeraria o resultado (a API combina os filtros).
-    if codigo_municipio and prefixo_ibge and not codigo_municipio.startswith(prefixo_ibge):
-        st.sidebar.warning(
-            f"O código {codigo_municipio} não é de um município do {uf_fixa}; "
-            "a consulta deve voltar vazia."
-        )
+    codigo_municipio = _seletor_municipio(uf_fixa)
 
     competencia = st.sidebar.text_input(
         "Competência (AAAAMM)",
@@ -196,6 +186,37 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
         "max_registros": max_registros,
         "buscar": buscar,
     }
+
+
+def _seletor_municipio(uf_fixa: str | None) -> str:
+    """Desenha o seletor de município e devolve o código IBGE escolhido.
+
+    Devolve ``""`` para "Todos". Sem UF fixada (página nacional) o seletor fica
+    travado: a escolha de município só faz sentido dentro de um estado.
+    """
+    municipios = _municipios_da_uf(uf_fixa) if uf_fixa else {}
+
+    if not municipios:
+        st.sidebar.selectbox(
+            "Município",
+            options=[ROTULO_TODOS_MUNICIPIOS],
+            disabled=True,
+            help=(
+                "Escolha de município disponível apenas na página do Pará."
+                if not uf_fixa
+                else f"Não há lista de municípios para {uf_fixa}."
+            ),
+        )
+        return ""
+
+    codigo = st.sidebar.selectbox(
+        "Município",
+        options=[""] + list(municipios),
+        index=0,
+        format_func=lambda cod: municipios.get(cod, ROTULO_TODOS_MUNICIPIOS),
+        help=f"Deixe em \"{ROTULO_TODOS_MUNICIPIOS}\" para consultar o {uf_fixa} inteiro.",
+    )
+    return codigo
 
 
 def _montar_filtros_api(
