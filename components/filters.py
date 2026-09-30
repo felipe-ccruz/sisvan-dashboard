@@ -121,7 +121,7 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     else:
         uf = formulario.selectbox("Estado (UF)", options=["Todos"] + UFS, index=0)
 
-    codigo_municipio = _seletor_municipio(uf_fixa, formulario)
+    codigos_municipio = _seletor_municipio(uf_fixa, formulario)
 
     competencia = formulario.text_input(
         "Competência (AAAAMM)",
@@ -179,7 +179,7 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     # ---- Monta os dicionários de filtro ----
     filtros_api = _montar_filtros_api(
         uf=uf,
-        codigo_municipio=codigo_municipio,
+        codigos_municipio=codigos_municipio,
         competencia=competencia,
         fases_rotulos=fases_rotulos,
         escolaridade_rotulo=escolaridade_rotulo,
@@ -198,11 +198,13 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     }
 
 
-def _seletor_municipio(uf_fixa: str | None, recipiente) -> str:
-    """Desenha o seletor de município em ``recipiente`` e devolve o código IBGE.
+def _seletor_municipio(uf_fixa: str | None, recipiente) -> tuple[str, ...]:
+    """Desenha o seletor de municípios em ``recipiente`` e devolve os códigos IBGE.
 
-    Devolve ``""`` para "Todos". Sem UF fixada (página nacional) o seletor fica
-    travado: a escolha de município só faz sentido dentro de um estado.
+    Devolve uma tupla vazia para "Todos". Sem UF fixada (página nacional) o seletor
+    fica travado: a escolha de município só faz sentido dentro de um estado. A tupla
+    sai ordenada para que a mesma seleção, feita em outra ordem, caia no mesmo
+    recorte em cache.
     """
     municipios = _municipios_da_uf(uf_fixa) if uf_fixa else {}
 
@@ -217,21 +219,24 @@ def _seletor_municipio(uf_fixa: str | None, recipiente) -> str:
                 else f"Não há lista de municípios para {uf_fixa}."
             ),
         )
-        return ""
+        return ()
 
-    codigo = recipiente.selectbox(
+    codigos = recipiente.multiselect(
         "Município",
-        options=[""] + list(municipios),
-        index=0,
-        format_func=lambda cod: municipios.get(cod, ROTULO_TODOS_MUNICIPIOS),
-        help=f"Deixe em \"{ROTULO_TODOS_MUNICIPIOS}\" para consultar o {uf_fixa} inteiro.",
+        options=list(municipios),
+        format_func=municipios.get,
+        placeholder=ROTULO_TODOS_MUNICIPIOS,
+        help=(
+            f"Vazio = {uf_fixa} inteiro. Com vários municípios, cada um é consultado "
+            "à parte e o teto de registros é dividido igualmente entre eles."
+        ),
     )
-    return codigo
+    return tuple(sorted(codigos))
 
 
 def _montar_filtros_api(
     uf: str,
-    codigo_municipio: str,
+    codigos_municipio: tuple[str, ...],
     competencia: str,
     fases_rotulos: list[str],
     escolaridade_rotulo: str,
@@ -244,8 +249,10 @@ def _montar_filtros_api(
 
     if uf and uf != "Todos":
         filtros["uf"] = uf
-    if codigo_municipio:
-        filtros["codigo_municipio"] = codigo_municipio
+    # A API aceita um município por requisição; com vários, o cliente faz uma
+    # consulta para cada (ver api.sisvan.consultar_estado_nutricional).
+    if codigos_municipio:
+        filtros["codigo_municipio"] = codigos_municipio
     if competencia:
         filtros["ano_mes_competencia"] = competencia
 
