@@ -1,0 +1,10 @@
+# --------------------------------------
+# TEMA
+# --------------------------------------
+# ``base`` fixa o modo escuro: com qualquer cor personalizada abaixo, o Streamlit
+# monta um tema próprio que, sem ``base``, parte do claro.
+# ``primaryColor`` é a cor de destaque da interface: botões, sliders, tags do
+# multiselect, radio, checkbox, links e a barra de progresso.
+[theme]
+base = "dark"
+primaryColor = "#5E9DFF"
