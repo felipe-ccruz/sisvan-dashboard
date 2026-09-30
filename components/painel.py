@@ -256,7 +256,7 @@ def renderizar_painel(
     descricao: str,
     chave_estado: str,
     nome_arquivo_csv: str,
-    uf_fixa: str | None = None,
+    uf_fixa: str,
     mapa_municipios: bool = False,
 ) -> None:
     """Desenha a página inteira: cabeçalho, sidebar, KPIs, gráficos e tabela.
@@ -272,8 +272,9 @@ def renderizar_painel(
         página usa a sua, para que os dados de uma não vazem para a outra.
     nome_arquivo_csv : str
         Nome do arquivo oferecido no botão de download.
-    uf_fixa : str | None
-        UF à qual a página está presa. ``None`` deixa o seletor de UF livre.
+    uf_fixa : str
+        UF à qual a página está presa: entra em toda consulta (não aparece na
+        sidebar) e define a lista de municípios.
     mapa_municipios : bool
         Quando ``True``, exibe o mapa de registros por município da ``uf_fixa``
         (precisa haver malha para ela em ``dimensoes/``).

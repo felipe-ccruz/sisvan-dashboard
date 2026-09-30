@@ -3,18 +3,16 @@
 Distingue dois tipos de filtro:
 
 - **Filtros de API**: viram parâmetros de query e reduzem o volume baixado
-  (UF, município, ano/meses da competência, fase da vida, escolaridade, gestante).
+  (município, ano/meses da competência, fase da vida, escolaridade, gestante). A UF
+  não aparece: vem fixa da página (``uf_fixa``) e entra em toda consulta.
 - **Filtros de cliente**: aplicados sobre o ``DataFrame`` já baixado, sem nova
   requisição (sexo, raça/cor, período). Assim o usuário refina a visualização de
   graça. O período (faixa de anos) é filtro de cliente porque a API só filtra por
   competência, um mês por vez — o ano do recorte é escolhido no formulário.
 
 A função :func:`renderizar_sidebar` desenha os controles e devolve as escolhas; o
-painel decide quando disparar a busca. Passando ``uf_fixa``, a UF deixa de ser
-escolhível e todas as consultas da página ficam presas àquele estado — é o que
-separa a página do Pará da página nacional. O município só é escolhível com a UF
-fixada: os nomes vêm da ``dim_regiao`` (que cobre o Pará), e na página nacional o
-seletor fica travado em "Todos".
+painel decide quando disparar a busca. Os municípios vêm da ``dim_regiao``, que
+cobre o Pará.
 """
 
 import unicodedata
@@ -27,12 +25,6 @@ from utils.dimensoes import carregar_municipios
 # --------------------------------------
 # TABELAS DE REFERÊNCIA (dicionario.md)
 # --------------------------------------
-UFS = [
-    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
-    "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
-    "SP", "SE", "TO",
-]
-
 # codigo_fase_vida -> rótulo
 FASES_VIDA = {
     1: "Menor de 6 meses",
@@ -90,15 +82,14 @@ def _municipios_da_uf(uf: str) -> dict[str, str]:
 # --------------------------------------
 # RENDERIZAÇÃO DA SIDEBAR
 # --------------------------------------
-def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
+def renderizar_sidebar(uf_fixa: str) -> dict:
     """Desenha os filtros e devolve as escolhas do usuário.
 
     Parameters
     ----------
-    uf_fixa : str | None
-        Sigla da UF à qual a página está presa (ex.: ``"PA"``). Quando informada, o
-        seletor de estado vira apenas um indicador e a UF entra em toda consulta.
-        ``None`` mantém o seletor livre (página nacional).
+    uf_fixa : str
+        Sigla da UF à qual a página está presa (ex.: ``"PA"``). Não aparece na
+        sidebar; entra em toda consulta e define a lista de municípios.
 
     Returns
     -------
@@ -122,18 +113,7 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     formulario = st.sidebar.form("recorte_api", border=False)
     formulario.subheader("Recorte (enviado à API)")
 
-    if uf_fixa:
-        uf = uf_fixa
-        formulario.selectbox(
-            "Estado (UF)",
-            options=[uf_fixa],
-            index=0,
-            disabled=True,
-            help="Esta página analisa apenas este estado.",
-        )
-    else:
-        uf = formulario.selectbox("Estado (UF)", options=["Todos"] + UFS, index=0)
-
+    uf = uf_fixa
     codigos_municipio = _seletor_municipio(uf_fixa, formulario)
 
     ano = formulario.selectbox(
@@ -218,26 +198,20 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     }
 
 
-def _seletor_municipio(uf_fixa: str | None, recipiente) -> tuple[str, ...]:
+def _seletor_municipio(uf_fixa: str, recipiente) -> tuple[str, ...]:
     """Desenha o seletor de municípios em ``recipiente`` e devolve os códigos IBGE.
 
-    Devolve uma tupla vazia para "Todos". Sem UF fixada (página nacional) o seletor
-    fica travado: a escolha de município só faz sentido dentro de um estado. A tupla
-    sai ordenada para que a mesma seleção, feita em outra ordem, caia no mesmo
-    recorte em cache.
+    Devolve uma tupla vazia para "Todos". A tupla sai ordenada para que a mesma
+    seleção, feita em outra ordem, caia no mesmo recorte em cache.
     """
-    municipios = _municipios_da_uf(uf_fixa) if uf_fixa else {}
+    municipios = _municipios_da_uf(uf_fixa)
 
     if not municipios:
         recipiente.selectbox(
             "Município",
             options=[ROTULO_TODOS_MUNICIPIOS],
             disabled=True,
-            help=(
-                "Escolha de município disponível apenas na página do Pará."
-                if not uf_fixa
-                else f"Não há lista de municípios para {uf_fixa}."
-            ),
+            help=f"Não há lista de municípios para {uf_fixa}.",
         )
         return ()
 
@@ -264,10 +238,8 @@ def _montar_filtros_api(
     gestante_rotulo: str,
 ) -> dict:
     """Converte as escolhas da UI em parâmetros aceitos pela API."""
-    filtros: dict = {}
+    filtros: dict = {"uf": uf}
 
-    if uf and uf != "Todos":
-        filtros["uf"] = uf
     # A API aceita um município por requisição; com vários, o cliente faz uma
     # consulta para cada (ver api.sisvan.consultar_estado_nutricional).
     if codigos_municipio:
