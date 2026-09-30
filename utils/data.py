@@ -193,6 +193,30 @@ _GRUPO_POR_ESQUELETO = {
 }
 
 
+# Posição de cada rótulo original na escala, do déficit ao excesso (os graus de
+# obesidade em ordem crescente). Serve para ordenar gráficos pelo sentido clínico.
+_POSICAO_POR_ESQUELETO = {
+    _esqueleto(rotulo): posicao
+    for posicao, rotulo in enumerate(
+        rotulo for rotulos in GRUPOS_ESTADO_NUTRICIONAL.values() for rotulo in rotulos
+    )
+}
+
+
+def posicao_estado_nutricional(serie: pd.Series) -> pd.Series:
+    """Posição de cada rótulo na escala do déficit ao excesso.
+
+    Rótulos desconhecidos (ou ausentes) viram ``NA``.
+    """
+
+    def posicionar(valor: object) -> object:
+        if not isinstance(valor, str):
+            return pd.NA
+        return _POSICAO_POR_ESQUELETO.get(_esqueleto(valor), pd.NA)
+
+    return serie.map(posicionar)
+
+
 def agrupar_estado_nutricional(serie: pd.Series) -> pd.Series:
     """Converte os rótulos de estado nutricional nos grupos harmonizados.
 
