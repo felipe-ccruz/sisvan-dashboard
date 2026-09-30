@@ -23,8 +23,8 @@ O **sisvan-dashboard** foi desenvolvido para facilitar a análise de dados do Si
 
 ### Funcionalidades
 
-- Duas páginas com a mesma estrutura: **Pará** (recorte fixo da SESPA) e **Nacional** (UF livre, para comparar o Pará com os demais estados)
-- Consulta à API do SISVAN com parâmetros configuráveis (UF, município, fase de vida, período, etc.)
+- Foco no **Pará** (recorte fixo da SESPA): toda consulta já sai filtrada pela UF `PA`
+- Consulta à API do SISVAN com parâmetros configuráveis (município, ano e meses, fase de vida, etc.)
 - Filtros interativos para exploração dos dados retornados
 - Visualizações gráficas de estados nutricionais (IMC, peso por fase de vida, distribuição por sexo, raça/cor, entre outros)
 - Cache dos dados em sessão para evitar requisições repetidas durante a navegação
@@ -89,16 +89,11 @@ O Streamlit abrirá automaticamente no navegador em `http://localhost:8501`.
 
 ---
 
-## Páginas
+## Recorte do Pará
 
-O dashboard tem duas páginas, escolhidas no menu da barra lateral. Elas compartilham a mesma estrutura (KPIs, gráficos e tabela) — a diferença está no recorte.
+O dashboard tem uma página só, a do **Pará** (uso da SESPA). A UF não aparece na barra lateral: toda consulta já sai filtrada por `PA`, e os demais filtros (município, ano, fase da vida, escolaridade) recortam dentro do estado. Os municípios são escolhidos pelo nome, um ou mais (padrão: todos). Há ainda o mapa **Registros por município**, que mostra onde a amostra baixada se concentra (e quais municípios ficaram sem nenhum registro).
 
-| Página | Filtro de UF | Filtro de município | Para que serve |
-|---|---|---|---|
-| 🌳 **Pará** (padrão) | Fixo em `PA` | Um ou mais municípios, pelo nome (padrão: todos) | Análise do estado, uso da SESPA. Toda consulta já sai filtrada pela UF; os demais filtros (município, fase da vida, escolaridade) recortam dentro do Pará. Tem ainda o mapa **Registros por município**, que mostra onde a amostra baixada se concentra (e quais municípios ficaram sem nenhum registro). |
-| 🇧🇷 **Nacional** | Livre (`Todos` + as 27 UFs) | Travado em `Todos` | Panorama do Brasil e comparação: quando o recorte traz mais de uma UF, aparece a seção **Comparação entre estados**, com o Pará em destaque e a distribuição do estado nutricional em `PA` x demais estados (em percentual, já que os grupos têm tamanhos diferentes). |
-
-Cada página guarda seus dados em uma chave própria da sessão, então trocar de página não descarta a busca da outra.
+A página nacional, com a comparação entre estados, foi retirada: com a amostra que a API permite baixar, as comparações entre UFs não se sustentam.
 
 ---
 
@@ -112,8 +107,7 @@ sisvan-dashboard/
 ├── README.md
 │
 ├── paginas/
-│   ├── para.py             # Página do Pará (UF presa em PA)
-│   └── nacional.py         # Página nacional (UF livre + comparação entre estados)
+│   └── para.py             # Página do Pará (UF presa em PA)
 │
 ├── dimensoes/
 │   ├── dim_regiao.parquet  # Municípios do Pará (código IBGE, nome, regionalização)
@@ -123,7 +117,7 @@ sisvan-dashboard/
 │   └── sisvan.py           # Funções para consumir a API do SISVAN
 │
 ├── components/
-│   ├── painel.py           # Corpo da página, compartilhado pelas duas páginas
+│   ├── painel.py           # Corpo da página (busca, KPIs, gráficos, tabela)
 │   ├── filters.py          # Componentes de filtro da sidebar
 │   ├── charts.py           # Funções de geração de gráficos
 │   └── mapas.py            # Mapas (malha municipal + dados)
@@ -155,11 +149,10 @@ Após o deploy, você receberá um link público que pode ser compartilhado com 
 
 ## Como usar o dashboard
 
-1. **Escolha a página** no menu da barra lateral: *Pará* (recorte estadual) ou *Nacional* (todas as UFs)
-2. **Selecione os filtros principais** na barra lateral (UF, município, ano e meses da competência, fase de vida, escolaridade, gestante) — na página do Pará a UF já vem travada em `PA` e dá para escolher um ou mais municípios pelo nome (padrão: todos — com vários, o teto de registros é dividido igualmente entre eles); na nacional o município fica travado em *Todos*. Escolhendo um **ano** (2008–2021, o que a API tem), cada mês é consultado à parte e o teto é dividido entre os meses
-3. Clique em **"Buscar dados"** — o sistema consultará a API do SISVAN com os parâmetros escolhidos
-4. Use os **filtros secundários** (sexo, raça/cor e o slider de **período**, em anos) para refinar a visualização sem fazer uma nova requisição. O período só mostra os anos que vieram na busca; para consultar um ano específico, use o filtro de ano no passo 2
-5. Explore os gráficos e a tabela de dados gerados automaticamente
+1. **Selecione os filtros principais** na barra lateral (município, ano e meses da competência, fase de vida, escolaridade, gestante). A UF já é `PA`; dá para escolher um ou mais municípios pelo nome (padrão: todos — com vários, o teto de registros é dividido igualmente entre eles). Escolhendo um **ano** (2008–2021, o que a API tem), cada mês é consultado à parte e o teto é dividido entre os meses
+2. Clique em **"Buscar dados"** — o sistema consultará a API do SISVAN com os parâmetros escolhidos
+3. Use os **filtros secundários** (sexo, raça/cor e o slider de **período**, de 2008 a 2021) para refinar a visualização sem fazer uma nova requisição. O período filtra só o que veio na busca: anos que não foram baixados deixam os gráficos vazios — para consultar um ano específico, use o filtro de ano no passo 1
+4. Explore os gráficos e a tabela de dados gerados automaticamente
 
 ---
 

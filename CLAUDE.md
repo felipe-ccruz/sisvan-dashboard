@@ -68,8 +68,7 @@ streamlit run app.py
 ```
 app.py                 # ponto de entrada: st.set_page_config + st.navigation
 paginas/
-  para.py              # página do Pará (uf_fixa="PA")
-  nacional.py          # página nacional (UF livre + comparação entre estados)
+  para.py              # página do Pará (uf_fixa="PA"), a única do app
 dimensoes/
   dim_regiao.parquet   # municípios do PA: código IBGE (6 dígitos), nome, lat/lon, regiões de saúde
   geo_pa_municipios.json  # malha municipal do PA (IBGE); id = código de 6 dígitos
@@ -94,12 +93,12 @@ transformação. Ele é manual (dicionário global via `st.cache_resource`, vali
 um callback (`ao_progredir`) do cliente da API, que continua sem Streamlit. A lista de municípios, que é estática, tem cache próprio em
 `components/filters.py`.
 
-**Páginas.** As duas páginas são só duas chamadas de
-`components.painel.renderizar_painel` com parâmetros diferentes — qualquer mudança de
-layout deve entrar no painel, não ser duplicada nas páginas. O que as separa:
-`uf_fixa` (trava o seletor de UF e entra em toda consulta) e `comparar_ufs` (exibe a
-seção comparativa). Cada página usa uma `chave_estado` própria no `st.session_state`,
-para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e não
+**Página.** Só existe a página do Pará: uma chamada de
+`components.painel.renderizar_painel` com `uf_fixa="PA"` (entra em toda consulta; a
+UF não aparece na sidebar). Mudanças de layout entram no painel, não na página. A
+página nacional e a comparação entre estados foram retiradas de propósito: com a
+amostra que a API permite baixar, comparações entre UFs não se sustentam — não
+reintroduzir sem uma fonte de dados completa. A pasta se chama `paginas/` e não
 `pages/` de propósito: com `st.navigation` os rótulos e ícones ficam explícitos no
 `app.py`, e o autodescobrimento de `pages/` fica desligado.
 
@@ -117,9 +116,7 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   PALETA_PADRAO`; as pontas de cada escala são cortadas para ficarem visíveis nos
   temas claro e escuro. A cor fica presa à entidade (fase da vida, raça/cor, grupo
   nutricional), nunca à posição da barra. **Exceção: sexo** é sempre azul e rosa
-  (`CORES_SEXO`), fora da paleta. Nos comparativos, a UF em foco
-  (`UF_DESTAQUE_PADRAO = "PA"`) e as demais ficam nas duas pontas da paleta — é
-  destaque, não categoria.
+  (`CORES_SEXO`), fora da paleta.
 - **Mapas** (`components/mapas.py`): projeção `geo` do Plotly (só o estado na tela,
   sem mapa-base), **uma camada por mapa** (cada camada embute a malha inteira, ~700
   KB, reenviada a cada rerun) e contagens em faixas, não em escala contínua (Belém e
@@ -147,9 +144,11 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   `AAAAMM` por mês. A base da API vai de **2008 a 2021**; pedir um mês **sem dados**
   para uma UF inteira estoura o timeout (502 após 60 s) — por isso só esses anos são
   oferecidos (`ANOS_COMPETENCIA`). A latência por página cresce com o ano (Pará:
-  ~1 s em 2010, ~12–17 s em 2019–2021). O slider de **período** (anos) continua como
-  filtro de cliente, com a faixa que veio na busca (`renderizar_filtro_anos`). A
-  faixa de idade saiu: a fase da vida já cobre esse recorte.
+  ~1 s em 2010, ~12–17 s em 2019–2021). O slider de **período** (anos) é filtro de
+  cliente, sempre visível, com faixa fixa 2008–2021 (`ANOS_COMPETENCIA`): refina o
+  que já foi baixado, e anos que não vieram deixam os gráficos vazios (escolha do
+  usuário; a busca por ano fica no formulário). A faixa de idade saiu: a fase da
+  vida já cobre esse recorte.
 - **Dimensões já vêm traduzidas** pela API (município, fase da vida, raça/cor,
   escolaridade, estado nutricional…). Não é preciso replicar tabelas de código→rótulo.
   A parte geográfica (lat/lon, regiões de saúde) vem da `dimensoes/dim_regiao.parquet`,
@@ -178,9 +177,7 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   para um clique no meio dela não interrompê-la). Sexo, raça/cor e período ficam
   fora do form.
 - **Cache de recortes**: guarda o resultado por recorte + volume; filtros de cliente
-  (sexo, raça/cor, período) refinam sem nova requisição. Como a UF entra nos filtros, Pará e
-  nacional têm entradas separadas.
+  (sexo, raça/cor, período) refinam sem nova requisição.
 - **Recorte do Pará**: a SESPA é do Pará, então a página `paginas/para.py` prende a UF
-  em `PA` e a nacional serve de comparação. Os municípios são escolhidos pelo nome,
-  um ou mais (lista da `dim_regiao`, vazio = "Todos"); na página nacional o
-  seletor fica travado, já que a dimensão só tem municípios do Pará.
+  em `PA`. Os municípios são escolhidos pelo nome, um ou mais (lista da
+  `dim_regiao`, que só cobre o Pará; vazio = "Todos").
