@@ -3,10 +3,9 @@
 Ponto de entrada do Streamlit. Consome a API pública do SISVAN ao vivo, com cache
 de sessão, e apresenta os microdados de estado nutricional com filtros e gráficos.
 
-Duas páginas, mesma estrutura, recortes diferentes:
-
-- **Pará**: consultas presas à UF ``PA`` (uso da SESPA).
-- **Nacional**: seletor de UF livre, com a comparação entre estados.
+Uma página: o **Pará**, com as consultas presas à UF ``PA`` (uso da SESPA). A
+página nacional saiu — comparações entre estados não se sustentam com a amostra
+que a API permite baixar.
 
 Execução: ``streamlit run app.py``
 """
@@ -30,7 +29,6 @@ st.set_page_config(
 # nome do arquivo.
 paginas = [
     st.Page("paginas/para.py", title="Pará", icon="🌳", default=True),
-    st.Page("paginas/nacional.py", title="Nacional", icon="🇧🇷"),
 ]
 
 st.navigation(paginas).run()

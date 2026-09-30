@@ -1,10 +1,8 @@
 """Painel do dashboard (corpo da página).
 
 Reúne o fluxo completo de uma página de análise: sidebar → busca na API → KPIs →
-gráficos → tabela. Existe para que as páginas (nacional e Pará) compartilhem
-exatamente a mesma estrutura, mudando apenas o recorte de UF: a página do Pará
-passa ``uf_fixa="PA"`` e a nacional deixa a UF livre, ganhando em troca a seção de
-comparação entre estados.
+gráficos → tabela. A página do Pará o chama com ``uf_fixa="PA"``: a UF entra em
+toda consulta e o seletor de município lista os municípios do estado.
 
 O cache dos recortes baixados mora aqui, envolvendo a chamada à API mais a
 transformação — é o ponto onde as duas coisas se juntam.
@@ -203,25 +201,8 @@ def _renderizar_kpis(df: pd.DataFrame, df_bruto: pd.DataFrame, max_registros: in
     )
 
 
-def _renderizar_comparacao_ufs(df: pd.DataFrame, uf_destaque: str, paleta: str) -> None:
-    """Seção que confronta a UF em foco com os demais estados do recorte."""
-    fig_ufs = charts.grafico_ufs(df, uf_destaque=uf_destaque, paleta=paleta)
-    fig_comparado = charts.grafico_estado_nutricional_comparado(
-        df, uf_destaque=uf_destaque, paleta=paleta
-    )
-    if fig_ufs is None and fig_comparado is None:
-        return
-
-    st.subheader(f"Comparação entre estados ({uf_destaque} em destaque)")
-    if fig_ufs is not None:
-        st.plotly_chart(fig_ufs, width="stretch")
-    if fig_comparado is not None:
-        st.plotly_chart(fig_comparado, width="stretch")
-    st.markdown("---")
-
-
 def _renderizar_graficos(df: pd.DataFrame, paleta: str) -> None:
-    """Grade de gráficos comum às duas páginas."""
+    """Grade de gráficos do painel."""
     linha1_esq, linha1_dir = st.columns(2)
     _mostrar(linha1_esq, charts.grafico_estado_nutricional(df, paleta=paleta))
     _mostrar(linha1_dir, charts.grafico_fase_vida(df, paleta=paleta))
@@ -276,9 +257,7 @@ def renderizar_painel(
     chave_estado: str,
     nome_arquivo_csv: str,
     uf_fixa: str | None = None,
-    comparar_ufs: bool = False,
     mapa_municipios: bool = False,
-    uf_destaque: str = charts.UF_DESTAQUE_PADRAO,
 ) -> None:
     """Desenha a página inteira: cabeçalho, sidebar, KPIs, gráficos e tabela.
 
@@ -295,14 +274,9 @@ def renderizar_painel(
         Nome do arquivo oferecido no botão de download.
     uf_fixa : str | None
         UF à qual a página está presa. ``None`` deixa o seletor de UF livre.
-    comparar_ufs : bool
-        Quando ``True``, exibe a seção comparativa entre estados (só faz sentido
-        na página nacional, onde o recorte pode trazer mais de uma UF).
     mapa_municipios : bool
         Quando ``True``, exibe o mapa de registros por município da ``uf_fixa``
         (precisa haver malha para ela em ``dimensoes/``).
-    uf_destaque : str
-        UF realçada nos gráficos comparativos.
     """
     st.title(titulo)
     st.caption(descricao)
@@ -360,8 +334,6 @@ def renderizar_painel(
     st.markdown("---")
     if mapa_municipios and uf_fixa:
         mapas.renderizar_mapa_registros(df, uf_fixa, paleta)
-    if comparar_ufs:
-        _renderizar_comparacao_ufs(df, uf_destaque, paleta)
     _renderizar_graficos(df, paleta)
     _renderizar_tabela(df, nome_arquivo_csv)
 
