@@ -73,7 +73,7 @@ paginas/
 dimensoes/
   dim_regiao.parquet   # municípios do PA: código IBGE (6 dígitos), nome, lat/lon, regiões de saúde
 api/
-  sisvan.py            # cliente da API do SISVAN (paginação + retry); Python puro
+  sisvan.py            # cliente da API do SISVAN (paginação paralela + retry); Python puro
 utils/
   data.py              # transformação/limpeza com pandas; puro (sem Streamlit)
   dimensoes.py         # leitura da dim_regiao; puro (sem Streamlit)
@@ -84,8 +84,12 @@ components/
 ```
 
 Camadas: `api/` e `utils/` não importam Streamlit (testáveis isoladamente). O cache
-de sessão (`st.cache_data`) fica em `components/painel.py`, envolvendo a chamada à
-API + transformação. A lista de municípios, que é estática, tem cache próprio em
+dos recortes fica em `components/painel.py`, envolvendo a chamada à API +
+transformação. Ele é manual (dicionário global via `st.cache_resource`, validade de
+1 h) e **não** `st.cache_data`: a carga desenha uma barra de progresso, e o
+`st.cache_data` regrava elementos desenhados dentro da função e quebra
+(`CacheReplayClosureError`) ao reaproveitar o cache. O progresso chega ao painel por
+um callback (`ao_progredir`) do cliente da API, que continua sem Streamlit. A lista de municípios, que é estática, tem cache próprio em
 `components/filters.py`.
 
 **Páginas.** As duas páginas são só duas chamadas de
@@ -130,10 +134,18 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   bytes perdidos (`SEM INFORMA�O`). Corrigido em `utils/data.py` por comparação de
   "esqueleto" (só letras A-Z).
 - **Estabilidade**: consultas filtradas retornam `502 Proxy Error` de forma intermitente
-  → o cliente tem retry com backoff. Recortes específicos respondem melhor.
-- **Cache de sessão**: `st.cache_data` em `components/painel.py` guarda o resultado
-  por recorte + volume; filtros de cliente (sexo, raça/cor) refinam sem nova
-  requisição. Como a UF entra nos filtros, Pará e nacional têm entradas separadas.
+  → o cliente tem retry com backoff. Recortes específicos respondem melhor. As páginas
+  são pedidas com até 5 requisições simultâneas (`REQUISICOES_PARALELAS`); mais que
+  isso tende a piorar os erros sem ganho real.
+- **Carga e progresso**: a API não informa o total do recorte, então o 100% da barra
+  é o teto escolhido (`max_registros / 20` páginas). Se uma página vier incompleta, o
+  recorte acabou e o total encolhe.
+- **Filtros em formulário**: os filtros de API ficam num `st.form` na sidebar — só o
+  botão dispara a busca, para o usuário fechar o recorte antes de uma carga longa (e
+  para um clique no meio dela não interrompê-la). Sexo e raça/cor ficam fora do form.
+- **Cache de recortes**: guarda o resultado por recorte + volume; filtros de cliente
+  (sexo, raça/cor) refinam sem nova requisição. Como a UF entra nos filtros, Pará e
+  nacional têm entradas separadas.
 - **Recorte do Pará**: a SESPA é do Pará, então a página `paginas/para.py` prende a UF
   em `PA` e a nacional serve de comparação. O município é escolhido pelo nome (lista
   da `dim_regiao`, padrão "Todos"); na página nacional o seletor fica travado, já
