@@ -365,26 +365,6 @@ def grafico_imc(df: pd.DataFrame, paleta: str = PALETA_PADRAO) -> go.Figure | No
     return _aplicar_tema(fig)
 
 
-def grafico_serie_temporal(
-    df: pd.DataFrame, paleta: str = PALETA_PADRAO
-) -> go.Figure | None:
-    """Acompanhamentos por competência (linha). Só faz sentido com >1 competência."""
-    if df.empty or "ano_mes_competencia" not in df.columns:
-        return None
-    contagem = df["ano_mes_competencia"].dropna().value_counts()
-    if contagem.size < 2:
-        return None
-
-    dados = contagem.rename_axis("competencia").reset_index(name="registros")
-    dados = dados.sort_values("competencia")
-
-    fig = px.line(dados, x="competencia", y="registros", markers=True,
-                  title="Acompanhamentos por competência",
-                  labels={"competencia": "Competência", "registros": "Registros"})
-    fig.update_traces(line_color=_cor_principal(paleta), line_width=2)
-    return _aplicar_tema(fig)
-
-
 def grafico_estado_nutricional_por_ano(
     df: pd.DataFrame, paleta: str = PALETA_PADRAO
 ) -> go.Figure | None:

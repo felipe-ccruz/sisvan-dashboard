@@ -245,10 +245,6 @@ def _renderizar_graficos(df: pd.DataFrame, paleta: str) -> None:
             "refine o recorte (ex.: um município)."
         )
 
-    fig_temporal = charts.grafico_serie_temporal(df, paleta=paleta)
-    if fig_temporal is not None:
-        st.plotly_chart(fig_temporal, width="stretch")
-
 
 def _renderizar_tabela(df: pd.DataFrame, nome_arquivo: str) -> None:
     """Tabela de dados + botão de download."""
