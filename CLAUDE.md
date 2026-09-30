@@ -121,6 +121,11 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   itens/página** → paginação obrigatória. Apesar de a documentação oficial dizer que
   `offset` é o número da página, na prática ele conta **registros** (`offset=1`
   começa no 2º item) → avançar `offset += len(pagina)`.
+- **Um município por requisição**: `codigo_municipio` só aceita um valor. O cliente
+  aceita uma lista e faz uma consulta por município, dividindo o teto em cotas
+  iguais (um teto único consumido em sequência deixaria os últimos de fora). Na
+  sidebar os códigos saem numa tupla ordenada: precisa ser hasheável para a chave
+  do cache de recortes, e ordenada para a mesma seleção cair na mesma entrada.
 - **Sem ordenação nem filtro de ano utilizável**: a API ignora parâmetros de
   ordenação, não informa o total e devolve em ordem de inserção (≈ cronológica, do
   mais antigo). Sem competência, os primeiros milhares de registros são de 2008; e o
@@ -147,6 +152,6 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   (sexo, raça/cor) refinam sem nova requisição. Como a UF entra nos filtros, Pará e
   nacional têm entradas separadas.
 - **Recorte do Pará**: a SESPA é do Pará, então a página `paginas/para.py` prende a UF
-  em `PA` e a nacional serve de comparação. O município é escolhido pelo nome (lista
-  da `dim_regiao`, padrão "Todos"); na página nacional o seletor fica travado, já
-  que a dimensão só tem municípios do Pará.
+  em `PA` e a nacional serve de comparação. Os municípios são escolhidos pelo nome,
+  um ou mais (lista da `dim_regiao`, vazio = "Todos"); na página nacional o
+  seletor fica travado, já que a dimensão só tem municípios do Pará.
