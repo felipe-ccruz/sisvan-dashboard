@@ -70,10 +70,13 @@ app.py                 # ponto de entrada: st.set_page_config + st.navigation
 paginas/
   para.py              # página do Pará (uf_fixa="PA")
   nacional.py          # página nacional (UF livre + comparação entre estados)
+dimensoes/
+  dim_regiao.parquet   # municípios do PA: código IBGE (6 dígitos), nome, lat/lon, regiões de saúde
 api/
   sisvan.py            # cliente da API do SISVAN (paginação + retry); Python puro
 utils/
   data.py              # transformação/limpeza com pandas; puro (sem Streamlit)
+  dimensoes.py         # leitura da dim_regiao; puro (sem Streamlit)
 components/
   painel.py            # corpo da página (busca, KPIs, gráficos, tabela) + cache
   filters.py           # filtros da sidebar (de API vs. de cliente)
@@ -82,7 +85,8 @@ components/
 
 Camadas: `api/` e `utils/` não importam Streamlit (testáveis isoladamente). O cache
 de sessão (`st.cache_data`) fica em `components/painel.py`, envolvendo a chamada à
-API + transformação.
+API + transformação. A lista de municípios, que é estática, tem cache próprio em
+`components/filters.py`.
 
 **Páginas.** As duas páginas são só duas chamadas de
 `components.painel.renderizar_painel` com parâmetros diferentes — qualquer mudança de
@@ -119,7 +123,9 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   filtro `ano_mes_competencia` costuma estourar o timeout (502 após 60 s).
 - **Dimensões já vêm traduzidas** pela API (município, fase da vida, raça/cor,
   escolaridade, estado nutricional…). Não é preciso replicar tabelas de código→rótulo.
-  A única dimensão ausente é geográfica (lat/lon do município) — mapa fica para depois.
+  A parte geográfica (lat/lon, regiões de saúde) vem da `dimensoes/dim_regiao.parquet`,
+  que só cobre o Pará; o join é `codigo_municipio` (API) = `mun_cod` (dimensão), ambos
+  com 6 dígitos. As linhas com `mun_cod` negativo são sentinelas ("Em branco" etc.).
 - **Codificação inconsistente**: texto vem ora sem acento (`SEM INFORMACAO`), ora com
   bytes perdidos (`SEM INFORMA�O`). Corrigido em `utils/data.py` por comparação de
   "esqueleto" (só letras A-Z).
@@ -129,5 +135,6 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   por recorte + volume; filtros de cliente (sexo, raça/cor) refinam sem nova
   requisição. Como a UF entra nos filtros, Pará e nacional têm entradas separadas.
 - **Recorte do Pará**: a SESPA é do Pará, então a página `paginas/para.py` prende a UF
-  em `PA` e a nacional serve de comparação. O código IBGE de município do Pará começa
-  em `15` — a sidebar avisa quando o município digitado não bate com a UF travada.
+  em `PA` e a nacional serve de comparação. O município é escolhido pelo nome (lista
+  da `dim_regiao`, padrão "Todos"); na página nacional o seletor fica travado, já
+  que a dimensão só tem municípios do Pará.

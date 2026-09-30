@@ -92,10 +92,10 @@ O Streamlit abrirá automaticamente no navegador em `http://localhost:8501`.
 
 O dashboard tem duas páginas, escolhidas no menu da barra lateral. Elas compartilham a mesma estrutura (KPIs, gráficos e tabela) — a diferença está no recorte.
 
-| Página | Filtro de UF | Para que serve |
-|---|---|---|
-| 🌳 **Pará** (padrão) | Fixo em `PA` | Análise do estado, uso da SESPA. Toda consulta já sai filtrada pela UF; os demais filtros (município, competência, fase da vida) recortam dentro do Pará. |
-| 🇧🇷 **Nacional** | Livre (`Todos` + as 27 UFs) | Panorama do Brasil e comparação: quando o recorte traz mais de uma UF, aparece a seção **Comparação entre estados**, com o Pará em destaque e a distribuição do estado nutricional em `PA` x demais estados (em percentual, já que os grupos têm tamanhos diferentes). |
+| Página | Filtro de UF | Filtro de município | Para que serve |
+|---|---|---|---|
+| 🌳 **Pará** (padrão) | Fixo em `PA` | Seletor por nome (padrão: todos) | Análise do estado, uso da SESPA. Toda consulta já sai filtrada pela UF; os demais filtros (município, competência, fase da vida) recortam dentro do Pará. |
+| 🇧🇷 **Nacional** | Livre (`Todos` + as 27 UFs) | Travado em `Todos` | Panorama do Brasil e comparação: quando o recorte traz mais de uma UF, aparece a seção **Comparação entre estados**, com o Pará em destaque e a distribuição do estado nutricional em `PA` x demais estados (em percentual, já que os grupos têm tamanhos diferentes). |
 
 Cada página guarda seus dados em uma chave própria da sessão, então trocar de página não descarta a busca da outra.
 
@@ -114,6 +114,9 @@ sisvan-dashboard/
 │   ├── para.py             # Página do Pará (UF presa em PA)
 │   └── nacional.py         # Página nacional (UF livre + comparação entre estados)
 │
+├── dimensoes/
+│   └── dim_regiao.parquet  # Municípios do Pará (código IBGE, nome, regionalização)
+│
 ├── api/
 │   └── sisvan.py           # Funções para consumir a API do SISVAN
 │
@@ -123,7 +126,8 @@ sisvan-dashboard/
 │   └── charts.py           # Funções de geração de gráficos
 │
 └── utils/
-    └── data.py             # Transformações e limpeza dos dados com pandas
+    ├── data.py             # Transformações e limpeza dos dados com pandas
+    └── dimensoes.py        # Leitura das tabelas de dimensão (lista de municípios)
 ```
 
 ---
@@ -149,7 +153,7 @@ Após o deploy, você receberá um link público que pode ser compartilhado com 
 ## Como usar o dashboard
 
 1. **Escolha a página** no menu da barra lateral: *Pará* (recorte estadual) ou *Nacional* (todas as UFs)
-2. **Selecione os filtros principais** na barra lateral (UF, município, fase de vida, período) — na página do Pará a UF já vem travada em `PA`
+2. **Selecione os filtros principais** na barra lateral (UF, município, fase de vida, período) — na página do Pará a UF já vem travada em `PA` e o município é escolhido pelo nome (padrão: todos); na nacional o município fica travado em *Todos*
 3. Clique em **"Buscar dados"** — o sistema consultará a API do SISVAN com os parâmetros escolhidos
 4. Use os **filtros secundários** (sexo, raça/cor) para refinar a visualização sem fazer uma nova requisição
 5. Explore os gráficos e a tabela de dados gerados automaticamente
