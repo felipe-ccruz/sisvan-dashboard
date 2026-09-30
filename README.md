@@ -156,9 +156,9 @@ Após o deploy, você receberá um link público que pode ser compartilhado com 
 ## Como usar o dashboard
 
 1. **Escolha a página** no menu da barra lateral: *Pará* (recorte estadual) ou *Nacional* (todas as UFs)
-2. **Selecione os filtros principais** na barra lateral (UF, município, fase de vida, escolaridade, gestante) — na página do Pará a UF já vem travada em `PA` e dá para escolher um ou mais municípios pelo nome (padrão: todos — com vários, o teto de registros é dividido igualmente entre eles); na nacional o município fica travado em *Todos*
+2. **Selecione os filtros principais** na barra lateral (UF, município, ano e meses da competência, fase de vida, escolaridade, gestante) — na página do Pará a UF já vem travada em `PA` e dá para escolher um ou mais municípios pelo nome (padrão: todos — com vários, o teto de registros é dividido igualmente entre eles); na nacional o município fica travado em *Todos*. Escolhendo um **ano** (2008–2021, o que a API tem), cada mês é consultado à parte e o teto é dividido entre os meses
 3. Clique em **"Buscar dados"** — o sistema consultará a API do SISVAN com os parâmetros escolhidos
-4. Use os **filtros secundários** (sexo, raça/cor e o slider de **período**, em anos) para refinar a visualização sem fazer uma nova requisição. O período só mostra os anos que vieram na busca: a API não permite escolher o ano na consulta
+4. Use os **filtros secundários** (sexo, raça/cor e o slider de **período**, em anos) para refinar a visualização sem fazer uma nova requisição. O período só mostra os anos que vieram na busca; para consultar um ano específico, use o filtro de ano no passo 2
 5. Explore os gráficos e a tabela de dados gerados automaticamente
 
 ---

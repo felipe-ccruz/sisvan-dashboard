@@ -133,18 +133,23 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   itens/página** → paginação obrigatória. Apesar de a documentação oficial dizer que
   `offset` é o número da página, na prática ele conta **registros** (`offset=1`
   começa no 2º item) → avançar `offset += len(pagina)`.
-- **Um município por requisição**: `codigo_municipio` só aceita um valor. O cliente
-  aceita uma lista e faz uma consulta por município, dividindo o teto em cotas
-  iguais (um teto único consumido em sequência deixaria os últimos de fora). Na
-  sidebar os códigos saem numa tupla ordenada: precisa ser hasheável para a chave
-  do cache de recortes, e ordenada para a mesma seleção cair na mesma entrada.
-- **Sem ordenação nem filtro de ano utilizável**: a API ignora parâmetros de
-  ordenação, não informa o total e devolve em ordem de inserção (≈ cronológica, do
-  mais antigo): os primeiros milhares de registros são de 2008. O filtro
-  `ano_mes_competencia` costuma estourar o timeout (502 após 60 s), por isso saiu da
-  sidebar; no lugar há um slider de **período** (anos) que é filtro de cliente, com a
-  faixa dos anos que vieram na busca (`renderizar_filtro_anos`, desenhado depois dela).
-  A faixa de idade também saiu: a fase da vida já cobre esse recorte.
+- **Um valor por requisição**: `codigo_municipio` e `ano_mes_competencia` só
+  aceitam um valor. O cliente aceita listas nos dois e faz uma consulta por
+  combinação (município x competência, `_desdobrar_filtros`), dividindo o teto em
+  cotas iguais (um teto único consumido em sequência deixaria os últimos de fora —
+  ex.: só janeiro de um ano). Na sidebar os valores saem em tuplas ordenadas:
+  precisam ser hasheáveis para a chave do cache de recortes, e ordenadas para a
+  mesma seleção cair na mesma entrada.
+- **Sem ordenação; ano via competência**: a API ignora parâmetros de ordenação, não
+  informa o total e devolve em ordem de inserção (≈ cronológica, do mais antigo):
+  sem competência, os primeiros milhares de registros são de 2008. Para um ano, a
+  sidebar tem "Ano (competência)" + "Meses" (vazio = 12), que viram uma competência
+  `AAAAMM` por mês. A base da API vai de **2008 a 2021**; pedir um mês **sem dados**
+  para uma UF inteira estoura o timeout (502 após 60 s) — por isso só esses anos são
+  oferecidos (`ANOS_COMPETENCIA`). A latência por página cresce com o ano (Pará:
+  ~1 s em 2010, ~12–17 s em 2019–2021). O slider de **período** (anos) continua como
+  filtro de cliente, com a faixa que veio na busca (`renderizar_filtro_anos`). A
+  faixa de idade saiu: a fase da vida já cobre esse recorte.
 - **Dimensões já vêm traduzidas** pela API (município, fase da vida, raça/cor,
   escolaridade, estado nutricional…). Não é preciso replicar tabelas de código→rótulo.
   A parte geográfica (lat/lon, regiões de saúde) vem da `dimensoes/dim_regiao.parquet`,
@@ -163,8 +168,11 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   são pedidas com até 5 requisições simultâneas (`REQUISICOES_PARALELAS`); mais que
   isso tende a piorar os erros sem ganho real.
 - **Carga e progresso**: a API não informa o total do recorte, então o 100% da barra
-  é o teto escolhido (`max_registros / 20` páginas). Se uma página vier incompleta, o
-  recorte acabou e o total encolhe.
+  é o teto escolhido (`max_registros / 20` páginas). Só uma página **vazia** marca o
+  fim do recorte (o total encolhe): a API às vezes devolve menos de 20 itens no meio
+  dos dados (~0,5% dos registros somem, de forma intermitente), então página
+  incompleta não é sinal de fim. Pelo mesmo motivo, o aviso "o recorte acabou antes
+  do teto" vem do total de páginas ter encolhido, não da contagem de registros.
 - **Filtros em formulário**: os filtros de API ficam num `st.form` na sidebar — só o
   botão dispara a busca, para o usuário fechar o recorte antes de uma carga longa (e
   para um clique no meio dela não interrompê-la). Sexo, raça/cor e período ficam
