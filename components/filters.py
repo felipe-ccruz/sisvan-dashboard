@@ -3,10 +3,11 @@
 Distingue dois tipos de filtro:
 
 - **Filtros de API**: viram parâmetros de query e reduzem o volume baixado
-  (UF, município, fase da vida, escolaridade, gestante).
+  (UF, município, ano/meses da competência, fase da vida, escolaridade, gestante).
 - **Filtros de cliente**: aplicados sobre o ``DataFrame`` já baixado, sem nova
   requisição (sexo, raça/cor, período). Assim o usuário refina a visualização de
-  graça. O período é filtro de cliente por necessidade: a API não filtra por ano.
+  graça. O período (faixa de anos) é filtro de cliente porque a API só filtra por
+  competência, um mês por vez — o ano do recorte é escolhido no formulário.
 
 A função :func:`renderizar_sidebar` desenha os controles e devolve as escolhas; o
 painel decide quando disparar a busca. Passando ``uf_fixa``, a UF deixa de ser
@@ -59,6 +60,17 @@ GESTANTE_OPCOES = {
     "Indiferente": None,
     "Apenas gestantes": 1,
     "Não gestantes": 0,
+}
+
+# Anos com dados na API (do mais novo para o mais antigo). A base da API termina em
+# 2021; pedir um mês sem dados para uma UF inteira estoura o timeout (502 após
+# 60 s), então anos posteriores não são oferecidos.
+ANOS_COMPETENCIA = list(range(2021, 2007, -1))
+
+MESES = {
+    1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho",
+    7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro",
+    12: "Dezembro",
 }
 
 
@@ -124,6 +136,23 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
 
     codigos_municipio = _seletor_municipio(uf_fixa, formulario)
 
+    ano = formulario.selectbox(
+        "Ano (competência)",
+        options=["Todos"] + ANOS_COMPETENCIA,
+        help=(
+            "Consulta mês a mês (competências AAAAMM) e divide o teto igualmente "
+            "entre os meses. A API só tem dados de 2008 a 2021. Em \"Todos\", a API "
+            "entrega do mais antigo para o mais novo (cargas pequenas ficam em 2008)."
+        ),
+    )
+    meses = formulario.multiselect(
+        "Meses",
+        options=list(MESES),
+        format_func=MESES.get,
+        placeholder="Todos os meses",
+        help="Vale só com um ano escolhido. Vazio = os 12 meses.",
+    )
+
     fases_rotulos = formulario.multiselect(
         "Fase da vida",
         options=list(FASES_VIDA.values()),
@@ -151,7 +180,8 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
         help="Teto de paginação. Valores altos deixam a busca mais lenta.",
     )
     formulario.caption(
-        "Referência: ~10 s a cada 1.000 registros (varia com a instabilidade da API)."
+        "Referência: ~10 a 40 s a cada 1.000 registros — anos recentes são mais "
+        "lentos (varia com a instabilidade da API)."
     )
 
     buscar = formulario.form_submit_button(
@@ -171,6 +201,8 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     filtros_api = _montar_filtros_api(
         uf=uf,
         codigos_municipio=codigos_municipio,
+        ano=ano,
+        meses=meses,
         fases_rotulos=fases_rotulos,
         escolaridade_rotulo=escolaridade_rotulo,
         gestante_rotulo=gestante_rotulo,
@@ -225,6 +257,8 @@ def _seletor_municipio(uf_fixa: str | None, recipiente) -> tuple[str, ...]:
 def _montar_filtros_api(
     uf: str,
     codigos_municipio: tuple[str, ...],
+    ano: int | str,
+    meses: list[int],
     fases_rotulos: list[str],
     escolaridade_rotulo: str,
     gestante_rotulo: str,
@@ -238,6 +272,13 @@ def _montar_filtros_api(
     # consulta para cada (ver api.sisvan.consultar_estado_nutricional).
     if codigos_municipio:
         filtros["codigo_municipio"] = codigos_municipio
+
+    # A API aceita uma competência (AAAAMM) por requisição; com um ano escolhido, o
+    # cliente faz uma consulta por mês. Sem ano, os meses são ignorados.
+    if ano != "Todos":
+        filtros["ano_mes_competencia"] = tuple(
+            f"{ano}{mes:02d}" for mes in sorted(meses or MESES)
+        )
 
     # A API aceita apenas uma fase por requisição; usa a primeira selecionada.
     if fases_rotulos:
@@ -258,8 +299,8 @@ def _montar_filtros_api(
 def renderizar_filtro_anos(df: pd.DataFrame) -> tuple[int, int] | None:
     """Desenha o slider de período com a faixa de anos presente nos dados baixados.
 
-    Fica com os filtros de cliente porque a API não filtra por ano (só por
-    competência, um mês por vez, e essa consulta costuma estourar o timeout). Chamado
+    Fica com os filtros de cliente porque a API não filtra por faixa de anos (só
+    por competência, um mês por vez; o ano único é escolhido no formulário). Chamado
     depois da busca, já que a faixa depende do que veio. Devolve ``None`` quando não
     há o que escolher (nenhum ano ou um ano só).
     """
@@ -280,8 +321,8 @@ def renderizar_filtro_anos(df: pd.DataFrame) -> tuple[int, int] | None:
         max_value=fim,
         value=(inicio, fim),
         help=(
-            "Filtra os anos presentes nos dados já baixados. A API não permite "
-            "escolher o ano na consulta e entrega do mais antigo para o mais novo."
+            "Filtra os anos presentes nos dados já baixados, sem nova busca. Para "
+            "consultar um ano específico, use \"Ano (competência)\" no recorte."
         ),
     )
 

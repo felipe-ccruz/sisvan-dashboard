@@ -240,7 +240,8 @@ def _renderizar_graficos(df: pd.DataFrame, paleta: str) -> None:
         # novo, cargas pequenas costumam cobrir um ano só.
         st.info(
             "O gráfico de estado nutricional por ano precisa de pelo menos dois anos "
-            "no recorte. A API entrega os registros do mais antigo para o mais novo, "
+            "no recorte. Com um ano escolhido em \"Ano (competência)\" ele não se "
+            "aplica; em \"Todos\", a API entrega do mais antigo para o mais novo, "
             "então cargas pequenas costumam cobrir um ano só — aumente o teto ou "
             "refine o recorte (ex.: um município)."
         )
@@ -319,7 +320,7 @@ def renderizar_painel(
         st.info(
             "👈 Defina os filtros na barra lateral e clique em **Buscar dados** para "
             "começar.\n\nDica: a API retorna no máximo 20 registros por página, então "
-            "recortes específicos (município + fase da vida) trazem resultados mais "
+            "recortes específicos (município, ano, fase da vida) trazem resultados mais "
             "rápidos e representativos."
         )
         st.stop()
