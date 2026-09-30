@@ -110,7 +110,13 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
 
 - **API do SISVAN** (`estado-nutricional`): retorna **microdados** (1 registro por
   acompanhamento), embrulhados na chave `estados_nutricionais`. **Limite rígido de 20
-  itens/página** → paginação obrigatória (`offset` = número da página, começa em 0).
+  itens/página** → paginação obrigatória. Apesar de a documentação oficial dizer que
+  `offset` é o número da página, na prática ele conta **registros** (`offset=1`
+  começa no 2º item) → avançar `offset += len(pagina)`.
+- **Sem ordenação nem filtro de ano utilizável**: a API ignora parâmetros de
+  ordenação, não informa o total e devolve em ordem de inserção (≈ cronológica, do
+  mais antigo). Sem competência, os primeiros milhares de registros são de 2008; e o
+  filtro `ano_mes_competencia` costuma estourar o timeout (502 após 60 s).
 - **Dimensões já vêm traduzidas** pela API (município, fase da vida, raça/cor,
   escolaridade, estado nutricional…). Não é preciso replicar tabelas de código→rótulo.
   A única dimensão ausente é geográfica (lat/lon do município) — mapa fica para depois.
