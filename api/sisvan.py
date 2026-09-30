@@ -72,7 +72,9 @@ def requisitar_pagina(
     filtros : dict | None
         Parâmetros de query aceitos pela API (ver ``PARAMETROS_API``).
     offset : int
-        Número da página (a contagem começa em 0).
+        Quantos registros pular (começa em 0). A documentação oficial chama de
+        "número da página", mas a API desloca por registro: ``offset=1`` começa
+        no 2º item, não no 21º.
     limite : int
         Itens por página. É truncado para ``LIMITE_MAXIMO_API`` (20).
     timeout : int
@@ -167,6 +169,8 @@ def consultar_estado_nutricional(
         if len(pagina) < LIMITE_MAXIMO_API:
             break
 
-        offset += 1
+        # O offset conta registros, não páginas: avançar de 1 em 1 repetiria até
+        # 20 vezes cada registro.
+        offset += len(pagina)
 
     return registros[:max_registros]
