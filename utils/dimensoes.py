@@ -65,13 +65,48 @@ def carregar_malha_municipal(uf: str) -> dict | None:
     """GeoJSON dos municípios da UF, ou ``None`` se não houver malha para ela.
 
     O ``id`` de cada feature é o código IBGE de 6 dígitos (chave de junção com
-    ``codigo_municipio`` da API e ``mun_cod`` da dimensão).
+    ``codigo_municipio`` da API e ``mun_cod`` da dimensão). Os polígonos já saem na
+    orientação que o Plotly espera (ver :func:`orientar_para_plotly`).
     """
     caminho = MALHAS_MUNICIPAIS.get(uf)
     if caminho is None or not caminho.exists():
         return None
     with open(caminho, encoding="utf-8") as arquivo:
-        return json.load(arquivo)
+        return orientar_para_plotly(json.load(arquivo))
+
+
+def orientar_para_plotly(geojson: dict) -> dict:
+    """Põe o contorno externo de cada polígono no sentido horário (furos no anti).
+
+    O GeoJSON do IBGE segue a RFC 7946: contorno externo anti-horário. Os mapas
+    ``geo`` do Plotly usam o d3, que espera o contrário e lê um polígono
+    anti-horário como "o globo inteiro menos o município" — o mapa vira uma mancha
+    de cor cobrindo tudo, com o hover ainda funcionando. Altera ``geojson`` no
+    lugar e o devolve.
+    """
+    for feature in geojson["features"]:
+        geometria = feature["geometry"]
+        if geometria["type"] == "Polygon":
+            poligonos = [geometria["coordinates"]]
+        elif geometria["type"] == "MultiPolygon":
+            poligonos = geometria["coordinates"]
+        else:
+            continue
+        for aneis in poligonos:
+            for indice, anel in enumerate(aneis):
+                externo = indice == 0
+                # Área com sinal (fórmula do laço): > 0 = anti-horário.
+                anti_horario = _area_com_sinal(anel) > 0
+                if externo == anti_horario:
+                    anel.reverse()
+    return geojson
+
+
+def _area_com_sinal(anel: list) -> float:
+    """Área (em graus², com sinal) de um anel de coordenadas [lon, lat]."""
+    return sum(
+        x1 * y2 - x2 * y1 for (x1, y1, *_), (x2, y2, *_) in zip(anel, anel[1:] + anel[:1])
+    ) / 2
 
 
 def _chave_ordenacao(nome: str) -> str:
