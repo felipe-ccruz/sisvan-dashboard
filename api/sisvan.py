@@ -8,7 +8,10 @@ puro, para poder ser testado e reaproveitado.
 Referência: https://apidadosabertos.saude.gov.br/sisvan/estado-nutricional
 """
 
+import math
 import time
+from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 
 import requests
 
@@ -22,6 +25,10 @@ LIMITE_MAXIMO_API = 20
 
 # Chave que embrulha a lista de registros na resposta JSON.
 CHAVE_RESPOSTA = "estados_nutricionais"
+
+# Requisições simultâneas. A API é instável (502 intermitente); mais que isso tende a
+# piorar a taxa de erro sem ganho real de velocidade.
+REQUISICOES_PARALELAS = 5
 
 # Filtros aceitos pela API (parâmetros de query). Sexo e raça/cor NÃO estão aqui de
 # propósito: são aplicados no lado do cliente, sobre o DataFrame já baixado.
@@ -119,20 +126,27 @@ def requisitar_pagina(
 
 
 # --------------------------------------
-# CONSULTA PAGINADA
+# CONSULTA PAGINADA (em paralelo)
 # --------------------------------------
+# Assinatura do aviso de progresso: (páginas concluídas, total de páginas, registros).
+AoProgredir = Callable[[int, int, int], None]
+
+
 def consultar_estado_nutricional(
     filtros: dict | None = None,
     max_registros: int = 1000,
     timeout: int = 60,
     tentativas: int = 3,
     pausa: float = 1.0,
+    paralelas: int = REQUISICOES_PARALELAS,
+    ao_progredir: AoProgredir | None = None,
 ) -> list[dict]:
     """Pagina a API até reunir ``max_registros`` (ou até acabarem os dados).
 
-    Como a API limita cada requisição a 20 itens, esta função percorre páginas
-    consecutivas. A busca para quando: (a) atinge ``max_registros``, ou (b) uma
-    página retorna menos itens que o limite — sinal de que os dados terminaram.
+    Como a API limita cada requisição a 20 itens, o teto vira um número conhecido de
+    páginas, baixadas com até ``paralelas`` requisições simultâneas. A API não
+    informa o total do recorte: quando uma página volta incompleta, os dados
+    acabaram, e as páginas seguintes deixam de ser pedidas (o total encolhe).
 
     Parameters
     ----------
@@ -142,35 +156,75 @@ def consultar_estado_nutricional(
         Teto de registros a baixar. Protege contra baixar a base inteira.
     timeout, tentativas, pausa
         Repassados para :func:`requisitar_pagina`.
+    paralelas : int
+        Número máximo de requisições simultâneas.
+    ao_progredir : callable | None
+        Chamado a cada página concluída com ``(paginas_concluidas, total_paginas,
+        registros)``. ``total_paginas`` parte do teto e diminui se o recorte acabar
+        antes. Roda na thread de quem chamou (seguro para atualizar a interface).
 
     Returns
     -------
     list[dict]
-        Registros reunidos (no máximo ``max_registros``).
+        Registros reunidos, na ordem da API (no máximo ``max_registros``).
+
+    Raises
+    ------
+    SisvanAPIError
+        Se alguma página falhar mesmo após as tentativas.
     """
-    registros: list[dict] = []
-    offset = 0
+    total_paginas = math.ceil(max_registros / LIMITE_MAXIMO_API)
+    paginas: dict[int, list[dict]] = {}
+    pendentes: dict[Future, int] = {}
+    proxima = 0
 
-    while len(registros) < max_registros:
-        pagina = requisitar_pagina(
-            filtros=filtros,
-            offset=offset,
-            limite=LIMITE_MAXIMO_API,
-            timeout=timeout,
-            tentativas=tentativas,
-            pausa=pausa,
-        )
-        if not pagina:
-            break
+    executor = ThreadPoolExecutor(max_workers=paralelas)
+    try:
+        while True:
+            # Mantém a janela cheia enquanto houver páginas dentro do total.
+            while len(pendentes) < paralelas and proxima < total_paginas:
+                futuro = executor.submit(
+                    requisitar_pagina,
+                    filtros=filtros,
+                    # O offset conta registros, não páginas (ver requisitar_pagina).
+                    offset=proxima * LIMITE_MAXIMO_API,
+                    limite=LIMITE_MAXIMO_API,
+                    timeout=timeout,
+                    tentativas=tentativas,
+                    pausa=pausa,
+                )
+                pendentes[futuro] = proxima
+                proxima += 1
 
-        registros.extend(pagina)
+            if not pendentes:
+                break
 
-        # Página incompleta => acabaram os dados desse recorte.
-        if len(pagina) < LIMITE_MAXIMO_API:
-            break
+            concluidos, _ = wait(pendentes, return_when=FIRST_COMPLETED)
+            for futuro in concluidos:
+                indice = pendentes.pop(futuro)
+                pagina = futuro.result()  # propaga SisvanAPIError
+                paginas[indice] = pagina
 
-        # O offset conta registros, não páginas: avançar de 1 em 1 repetiria até
-        # 20 vezes cada registro.
-        offset += len(pagina)
+                # Página incompleta => acabaram os dados desse recorte.
+                if len(pagina) < LIMITE_MAXIMO_API:
+                    total_paginas = min(total_paginas, indice + 1)
 
+            validas = [i for i in paginas if i < total_paginas]
+            if ao_progredir is not None:
+                ao_progredir(
+                    len(validas),
+                    total_paginas,
+                    sum(len(paginas[i]) for i in validas),
+                )
+
+            # Todas as páginas úteis chegaram; as que sobraram em voo são além do fim.
+            if len(validas) == total_paginas:
+                break
+    finally:
+        # Em caso de erro, não espera as requisições em voo nem começa as da fila.
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    registros = [
+        registro for indice in range(total_paginas) for registro in paginas[indice]
+    ]
     return registros[:max_registros]
