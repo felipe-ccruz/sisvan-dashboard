@@ -103,11 +103,15 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     )
 
     # ---- Filtros de API ----
-    st.sidebar.subheader("Recorte (enviado à API)")
+    # Ficam num formulário: mexer neles não dispara nada, só o botão envia. Assim o
+    # usuário fecha o recorte antes de uma carga longa, e um clique no meio dela não
+    # a interrompe à toa.
+    formulario = st.sidebar.form("recorte_api", border=False)
+    formulario.subheader("Recorte (enviado à API)")
 
     if uf_fixa:
         uf = uf_fixa
-        st.sidebar.selectbox(
+        formulario.selectbox(
             "Estado (UF)",
             options=[uf_fixa],
             index=0,
@@ -115,47 +119,39 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
             help="Esta página analisa apenas este estado.",
         )
     else:
-        uf = st.sidebar.selectbox("Estado (UF)", options=["Todos"] + UFS, index=0)
+        uf = formulario.selectbox("Estado (UF)", options=["Todos"] + UFS, index=0)
 
-    codigo_municipio = _seletor_municipio(uf_fixa)
+    codigo_municipio = _seletor_municipio(uf_fixa, formulario)
 
-    competencia = st.sidebar.text_input(
+    competencia = formulario.text_input(
         "Competência (AAAAMM)",
         help="Ano e mês do acompanhamento. Ex.: 202301 para jan/2023.",
         placeholder="ex.: 202301",
     ).strip()
 
-    fases_rotulos = st.sidebar.multiselect(
+    fases_rotulos = formulario.multiselect(
         "Fase da vida",
         options=list(FASES_VIDA.values()),
         help="Selecione uma ou nenhuma (nenhuma = todas).",
     )
 
-    escolaridade_rotulo = st.sidebar.selectbox(
+    escolaridade_rotulo = formulario.selectbox(
         "Escolaridade",
         options=["Todas"] + list(ESCOLARIDADES.values()),
         index=0,
     )
 
-    gestante_rotulo = st.sidebar.radio(
+    gestante_rotulo = formulario.radio(
         "Gestante", options=list(GESTANTE_OPCOES.keys()), horizontal=True
     )
 
-    idade_min, idade_max = st.sidebar.slider(
+    idade_min, idade_max = formulario.slider(
         "Faixa de idade (anos)", min_value=0, max_value=120, value=(0, 120)
     )
 
-    # ---- Filtros de cliente ----
-    st.sidebar.subheader("Refinar (sem nova busca)")
-    sexo = st.sidebar.multiselect("Sexo", options=["Feminino", "Masculino"])
-    raca_cor = st.sidebar.multiselect(
-        "Raça/Cor",
-        options=["Branca", "Preta", "Amarela", "Parda", "Indígena", "Sem informação"],
-    )
-
     # ---- Volume ----
-    st.sidebar.subheader("Volume")
-    max_registros = st.sidebar.slider(
+    formulario.subheader("Volume")
+    max_registros = formulario.slider(
         "Máximo de registros a baixar",
         min_value=100,
         max_value=5000,
@@ -163,8 +159,22 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
         step=100,
         help="Teto de paginação. Valores altos deixam a busca mais lenta.",
     )
+    formulario.caption(
+        "Referência: ~10 s a cada 1.000 registros (varia com a instabilidade da API)."
+    )
 
-    buscar = st.sidebar.button("🔍 Buscar dados", type="primary", width="stretch")
+    buscar = formulario.form_submit_button(
+        "🔍 Buscar dados", type="primary", width="stretch"
+    )
+
+    # ---- Filtros de cliente ----
+    # Fora do formulário: refinam o que já foi baixado, sem nova requisição.
+    st.sidebar.subheader("Refinar (sem nova busca)")
+    sexo = st.sidebar.multiselect("Sexo", options=["Feminino", "Masculino"])
+    raca_cor = st.sidebar.multiselect(
+        "Raça/Cor",
+        options=["Branca", "Preta", "Amarela", "Parda", "Indígena", "Sem informação"],
+    )
 
     # ---- Monta os dicionários de filtro ----
     filtros_api = _montar_filtros_api(
@@ -188,8 +198,8 @@ def renderizar_sidebar(uf_fixa: str | None = None) -> dict:
     }
 
 
-def _seletor_municipio(uf_fixa: str | None) -> str:
-    """Desenha o seletor de município e devolve o código IBGE escolhido.
+def _seletor_municipio(uf_fixa: str | None, recipiente) -> str:
+    """Desenha o seletor de município em ``recipiente`` e devolve o código IBGE.
 
     Devolve ``""`` para "Todos". Sem UF fixada (página nacional) o seletor fica
     travado: a escolha de município só faz sentido dentro de um estado.
@@ -197,7 +207,7 @@ def _seletor_municipio(uf_fixa: str | None) -> str:
     municipios = _municipios_da_uf(uf_fixa) if uf_fixa else {}
 
     if not municipios:
-        st.sidebar.selectbox(
+        recipiente.selectbox(
             "Município",
             options=[ROTULO_TODOS_MUNICIPIOS],
             disabled=True,
@@ -209,7 +219,7 @@ def _seletor_municipio(uf_fixa: str | None) -> str:
         )
         return ""
 
-    codigo = st.sidebar.selectbox(
+    codigo = recipiente.selectbox(
         "Município",
         options=[""] + list(municipios),
         index=0,
