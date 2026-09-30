@@ -151,10 +151,10 @@ def consultar_estado_nutricional(
     Parameters
     ----------
     filtros : dict | None
-        Parâmetros de query da API. ``codigo_municipio`` pode ser uma lista de
-        códigos: a API só aceita um por requisição, então cada município vira uma
-        consulta própria e o teto é dividido entre eles (ver
-        :func:`_consultar_varios_municipios`).
+        Parâmetros de query da API. ``codigo_municipio`` e ``ano_mes_competencia``
+        podem ser listas: a API só aceita um valor por requisição, então cada
+        combinação (município x competência) vira uma consulta própria e o teto é
+        dividido entre elas (ver :func:`_consultar_varios_recortes`).
     max_registros : int
         Teto de registros a baixar. Protege contra baixar a base inteira.
     timeout, tentativas, pausa
@@ -176,11 +176,10 @@ def consultar_estado_nutricional(
     SisvanAPIError
         Se alguma página falhar mesmo após as tentativas.
     """
-    codigos = _codigos_municipio(filtros)
-    if len(codigos) > 1:
-        return _consultar_varios_municipios(
-            filtros,
-            codigos,
+    recortes = _desdobrar_filtros(filtros)
+    if len(recortes) > 1:
+        return _consultar_varios_recortes(
+            recortes,
             max_registros,
             timeout=timeout,
             tentativas=tentativas,
@@ -188,8 +187,7 @@ def consultar_estado_nutricional(
             paralelas=paralelas,
             ao_progredir=ao_progredir,
         )
-    if codigos:
-        filtros = {**filtros, "codigo_municipio": codigos[0]}
+    filtros = recortes[0]
 
     total_paginas = math.ceil(max_registros / LIMITE_MAXIMO_API)
     paginas: dict[int, list[dict]] = {}
@@ -249,49 +247,72 @@ def consultar_estado_nutricional(
 
 
 # --------------------------------------
-# VÁRIOS MUNICÍPIOS
+# VÁRIOS RECORTES (municípios x competências)
 # --------------------------------------
-def _codigos_municipio(filtros: dict | None) -> list[str]:
-    """Normaliza ``codigo_municipio`` (valor único ou lista) para uma lista."""
-    valor = (filtros or {}).get("codigo_municipio")
+# Parâmetros que aceitam lista na interface, embora a API receba um valor por vez.
+PARAMETROS_MULTIPLOS = ("codigo_municipio", "ano_mes_competencia")
+
+
+def _valores(valor: object) -> list[str]:
+    """Normaliza um parâmetro (valor único ou lista) para uma lista de textos."""
     if valor in (None, ""):
         return []
     if isinstance(valor, (list, tuple, set)):
-        return [str(codigo) for codigo in valor if codigo not in (None, "")]
+        return [str(item) for item in valor if item not in (None, "")]
     return [str(valor)]
+
+
+def _desdobrar_filtros(filtros: dict | None) -> list[dict]:
+    """Expande os parâmetros com lista em filtros de valor único.
+
+    Devolve uma lista com um filtro por combinação (produto dos municípios pelas
+    competências), na ordem município -> competência. Sem listas, devolve só o
+    próprio filtro.
+    """
+    recortes = [dict(filtros or {})]
+    for parametro in PARAMETROS_MULTIPLOS:
+        valores = _valores((filtros or {}).get(parametro))
+        if not valores:
+            for recorte in recortes:
+                recorte.pop(parametro, None)
+            continue
+        recortes = [
+            {**recorte, parametro: valor} for recorte in recortes for valor in valores
+        ]
+    return recortes
 
 
 def _dividir_teto(max_registros: int, partes: int) -> list[int]:
     """Divide o teto em cotas quase iguais (as primeiras levam a sobra).
 
     Cada parte recebe ao menos 1 registro, mesmo que isso passe do teto quando há
-    mais partes que registros — melhor que deixar um município escolhido de fora.
+    mais partes que registros — melhor que deixar um recorte escolhido de fora.
     """
     base, sobra = divmod(max_registros, partes)
     return [max(base + (1 if i < sobra else 0), 1) for i in range(partes)]
 
 
-def _consultar_varios_municipios(
-    filtros: dict,
-    codigos: list[str],
+def _consultar_varios_recortes(
+    recortes: list[dict],
     max_registros: int,
     ao_progredir: AoProgredir | None = None,
     **opcoes,
 ) -> list[dict]:
-    """Faz uma consulta paginada por município e junta os resultados.
+    """Faz uma consulta paginada por recorte (município x competência) e junta tudo.
 
-    O teto é dividido igualmente entre os municípios: se fosse um teto único
+    O teto é dividido igualmente entre os recortes: se fosse um teto único
     consumido em sequência, o primeiro poderia esgotá-lo e os demais ficariam de
-    fora. O progresso é reportado como uma única barra, somando as páginas de
-    todos (o total encolhe quando algum município acaba antes da cota).
+    fora (ex.: só janeiro de um ano inteiro). O progresso é reportado como uma
+    única barra, somando as páginas de todos (o total encolhe quando algum recorte
+    acaba antes da cota).
     """
-    cotas = _dividir_teto(max_registros, len(codigos))
+    cotas = _dividir_teto(max_registros, len(recortes))
     planejadas = [math.ceil(cota / LIMITE_MAXIMO_API) for cota in cotas]
 
     registros: list[dict] = []
     paginas_feitas = 0  # páginas dos municípios já concluídos
 
-    for indice, (codigo, cota) in enumerate(zip(codigos, cotas)):
+    for indice, (recorte, cota) in enumerate(zip(recortes, cotas)):
         restantes = sum(planejadas[indice + 1 :])
         total_atual = [planejadas[indice]]
 
@@ -307,7 +328,7 @@ def _consultar_varios_municipios(
 
         registros.extend(
             consultar_estado_nutricional(
-                filtros={**filtros, "codigo_municipio": codigo},
+                filtros=recorte,
                 max_registros=cota,
                 ao_progredir=repassar,
                 **opcoes,
