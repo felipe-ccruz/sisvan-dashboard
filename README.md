@@ -28,6 +28,7 @@ O **sisvan-dashboard** foi desenvolvido para facilitar a análise de dados do Si
 - Filtros interativos para exploração dos dados retornados
 - Visualizações gráficas de estados nutricionais (IMC, peso por fase de vida, distribuição por sexo, raça/cor, entre outros)
 - Cache dos dados em sessão para evitar requisições repetidas durante a navegação
+- Mapa do Pará com quantos registros da busca caíram em cada município (página do Pará)
 
 ---
 
@@ -94,7 +95,7 @@ O dashboard tem duas páginas, escolhidas no menu da barra lateral. Elas compart
 
 | Página | Filtro de UF | Filtro de município | Para que serve |
 |---|---|---|---|
-| 🌳 **Pará** (padrão) | Fixo em `PA` | Um ou mais municípios, pelo nome (padrão: todos) | Análise do estado, uso da SESPA. Toda consulta já sai filtrada pela UF; os demais filtros (município, competência, fase da vida) recortam dentro do Pará. |
+| 🌳 **Pará** (padrão) | Fixo em `PA` | Um ou mais municípios, pelo nome (padrão: todos) | Análise do estado, uso da SESPA. Toda consulta já sai filtrada pela UF; os demais filtros (município, competência, fase da vida) recortam dentro do Pará. Tem ainda o mapa **Registros por município**, que mostra onde a amostra baixada se concentra (e quais municípios ficaram sem nenhum registro). |
 | 🇧🇷 **Nacional** | Livre (`Todos` + as 27 UFs) | Travado em `Todos` | Panorama do Brasil e comparação: quando o recorte traz mais de uma UF, aparece a seção **Comparação entre estados**, com o Pará em destaque e a distribuição do estado nutricional em `PA` x demais estados (em percentual, já que os grupos têm tamanhos diferentes). |
 
 Cada página guarda seus dados em uma chave própria da sessão, então trocar de página não descarta a busca da outra.
@@ -115,7 +116,8 @@ sisvan-dashboard/
 │   └── nacional.py         # Página nacional (UF livre + comparação entre estados)
 │
 ├── dimensoes/
-│   └── dim_regiao.parquet  # Municípios do Pará (código IBGE, nome, regionalização)
+│   ├── dim_regiao.parquet  # Municípios do Pará (código IBGE, nome, regionalização)
+│   └── geo_pa_municipios.json  # Malha municipal do Pará (IBGE)
 │
 ├── api/
 │   └── sisvan.py           # Funções para consumir a API do SISVAN
@@ -123,11 +125,12 @@ sisvan-dashboard/
 ├── components/
 │   ├── painel.py           # Corpo da página, compartilhado pelas duas páginas
 │   ├── filters.py          # Componentes de filtro da sidebar
-│   └── charts.py           # Funções de geração de gráficos
+│   ├── charts.py           # Funções de geração de gráficos
+│   └── mapas.py            # Mapas (malha municipal + dados)
 │
 └── utils/
     ├── data.py             # Transformações e limpeza dos dados com pandas
-    └── dimensoes.py        # Leitura das tabelas de dimensão (lista de municípios)
+    └── dimensoes.py        # Leitura das dimensões e da malha municipal
 ```
 
 ---

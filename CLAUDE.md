@@ -72,15 +72,17 @@ paginas/
   nacional.py          # página nacional (UF livre + comparação entre estados)
 dimensoes/
   dim_regiao.parquet   # municípios do PA: código IBGE (6 dígitos), nome, lat/lon, regiões de saúde
+  geo_pa_municipios.json  # malha municipal do PA (IBGE); id = código de 6 dígitos
 api/
   sisvan.py            # cliente da API do SISVAN (paginação paralela + retry); Python puro
 utils/
   data.py              # transformação/limpeza com pandas; puro (sem Streamlit)
-  dimensoes.py         # leitura da dim_regiao; puro (sem Streamlit)
+  dimensoes.py         # leitura da dim_regiao e das malhas; puro (sem Streamlit)
 components/
   painel.py            # corpo da página (busca, KPIs, gráficos, tabela) + cache
   filters.py           # filtros da sidebar (de API vs. de cliente)
   charts.py            # construtores de gráficos Plotly
+  mapas.py             # mapas (malha + dimensão) e a seção do mapa na página
 ```
 
 Camadas: `api/` e `utils/` não importam Streamlit (testáveis isoladamente). O cache
@@ -118,6 +120,11 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   (`CORES_SEXO`), fora da paleta. Nos comparativos, a UF em foco
   (`UF_DESTAQUE_PADRAO = "PA"`) e as demais ficam nas duas pontas da paleta — é
   destaque, não categoria.
+- **Mapas** (`components/mapas.py`): projeção `geo` do Plotly (só o estado na tela,
+  sem mapa-base), **uma camada por mapa** (cada camada embute a malha inteira, ~700
+  KB, reenviada a cada rerun) e contagens em faixas, não em escala contínua (Belém e
+  Santarém apagariam o resto). O mapa de registros mostra onde a amostra baixada
+  caiu — não é cobertura do SISVAN nem indicador; o texto da seção diz isso.
 
 ## Notas de domínio
 
@@ -140,6 +147,11 @@ para que os dados de uma não vazem para a outra. A pasta se chama `paginas/` e 
   A parte geográfica (lat/lon, regiões de saúde) vem da `dimensoes/dim_regiao.parquet`,
   que só cobre o Pará; o join é `codigo_municipio` (API) = `mun_cod` (dimensão), ambos
   com 6 dígitos. As linhas com `mun_cod` negativo são sentinelas ("Em branco" etc.).
+- **Orientação dos polígonos**: o GeoJSON do IBGE segue a RFC 7946 (contorno externo
+  anti-horário), mas os mapas `geo` do Plotly (d3) esperam o horário — sem
+  corrigir, cada município vira "o globo menos o município" e o mapa é uma mancha
+  de cor com o hover funcionando. `carregar_malha_municipal` reorienta ao carregar
+  (`orientar_para_plotly`); o arquivo fica como veio do IBGE.
 - **Codificação inconsistente**: texto vem ora sem acento (`SEM INFORMACAO`), ora com
   bytes perdidos (`SEM INFORMA�O`). Corrigido em `utils/data.py` por comparação de
   "esqueleto" (só letras A-Z).
